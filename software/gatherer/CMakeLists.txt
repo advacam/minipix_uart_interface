@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # set this to 1 to compile with OpenCV
-set(GUI 1)
+set(GUI 0)
 
 if(${GUI})
   MESSAGE(WARNING "[Gatherer]: Compiling with GUI")
@@ -50,6 +50,29 @@ set(LINK_LIBS
 
 endif()
 ## | ------------ add OpenCV GUI <<<<<<<<<<<<<<<<< ------------ |
+
+add_executable(gatherer_tot_toa
+  src/main_tot_toa.cpp
+  src/gatherer.cpp
+  src/pixel_decoder.c
+  src/serial_port.cpp
+
+  src/llcp/llcp.c
+  src/llcp/llcp_endian.c
+  src/llcp/llcp_minipix_messages.c
+)
+
+include_directories(
+  ${INCLUDE_DIRS}
+)
+
+target_link_libraries(gatherer_tot_toa
+  ${LINK_LIBS}
+)
+
+target_compile_definitions(gatherer_tot_toa PRIVATE GUI=${GUI})
+
+
 
 add_executable(gatherer
   src/main.cpp
