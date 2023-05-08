@@ -42,4 +42,4 @@ target_compile_definitions(example_interface_lxtest PRIVATE MUI_SEND_STRING=1)
 target_compile_definitions(example_interface_lxtest PRIVATE GATHERER_SEND_STRING=1)
 # target_compile_definitions(example_interface_lxtest PRIVATE GATHERER_SEND_CHAR=1)
 
-target_compile_definitions(example_interface_lxtest PRIVATE LLCP_DEBUG_PRINT=1)
+target_compile_definitions(example_interface_lxtest PRIVATE LLCP_DEBUG_PRINT=0)

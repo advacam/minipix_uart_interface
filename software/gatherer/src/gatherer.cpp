@@ -275,6 +275,19 @@ void Gatherer::saveFrameDataToFile(const LLCP_FrameDataMsg_t& msg) {
 
 //}
 
+
+int Gatherer::savePixelToTxtFile(int x, int y, double val_1, double val_2)
+{
+  if(measured_data_file_)
+  {
+    fprintf(measured_data_file_, "%d\t%d\t%g\t%g\n", x, y, val_1, val_2);    
+  }
+  else
+    return -1;
+
+  return 0;
+}
+
 // | ------- Callbacks for processing data from MiniPIX ------- |
 
 /* callbackFrameData() //{ */
@@ -284,7 +297,7 @@ void Gatherer::callbackFrameData(const LLCP_Message_t* message_in) {
   LLCP_FrameDataMsg_t* msg = (LLCP_FrameDataMsg_t*)message_in;
   ntoh_LLCP_FrameDataMsg_t(msg);
 
-  saveFrameDataToFile(*msg);
+  // saveFrameDataToFile(*msg);
 
   LLCP_FrameData_t* image = (LLCP_FrameData_t*)&msg->payload;
 
@@ -314,7 +327,102 @@ void Gatherer::callbackFrameData(const LLCP_Message_t* message_in) {
     }
   }
 
-  printf("received frame data, id %d, packet %d, n_pixels %d\n", image->frame_id, image->packet_id, image->n_pixels);
+  // printf("received frame data, id %d, packet %d, n_pixels %d\n", image->frame_id, image->packet_id, image->n_pixels);
+
+if(doSaveDataInTxt)
+{
+  if(frameN != image->frame_id)
+  {
+    printf("\n");    
+    fprintf(measured_data_file_, "frame %d\n", frameN);
+    frameN = image->frame_id;
+    pixNCurr = 0;
+  }
+
+  // for all the pixels in the packet
+  for (int pix = 0; pix < image->n_pixels; pix++) {
+
+    uint8_t  x, y;
+    uint16_t tot, toa, ftoa, mpx, itot;
+
+    pixN++;
+    pixNCurr++;
+
+    // decode the pixel values based on the measurement mode
+    switch (image->mode) {
+
+      case LLCP_TPX3_PXL_MODE_TOA_TOT: {
+
+        // derandomize and deserialize the pixel data
+        decodePixelData((uint8_t*)&image->pixel_data[pix], 4, TPX3_TOA_TOT);
+
+        x = ((LLCP_PixelDataToAToT_t*)&image->pixel_data[pix])->address % 256;
+        y = ((LLCP_PixelDataToAToT_t*)&image->pixel_data[pix])->address / 256;
+
+        ftoa = ((LLCP_PixelDataToAToT_t*)&image->pixel_data[pix])->ftoa;
+        tot  = ((LLCP_PixelDataToAToT_t*)&image->pixel_data[pix])->tot;
+        toa  = ((LLCP_PixelDataToAToT_t*)&image->pixel_data[pix])->toa;
+
+        mpx  = 0;
+        itot = 0;
+
+        double time = toa*25. - ftoa*25./16.;
+
+        savePixelToTxtFile(x, y, tot, time);
+
+        break;
+      }
+
+      case LLCP_TPX3_PXL_MODE_TOA: {
+
+        // derandomize and deserialize the pixel data
+        decodePixelData((uint8_t*)&image->pixel_data[pix], 4, TPX3_TOA);
+
+        x = ((LLCP_PixelDataToA_t*)&image->pixel_data[pix])->address % 256;
+        y = ((LLCP_PixelDataToA_t*)&image->pixel_data[pix])->address / 256;
+
+        ftoa = ((LLCP_PixelDataToA_t*)&image->pixel_data[pix])->ftoa;
+        toa  = ((LLCP_PixelDataToA_t*)&image->pixel_data[pix])->toa;
+
+        tot  = 0;
+        mpx  = 0;
+        itot = 0;
+
+        savePixelToTxtFile(x, y, toa, ftoa);
+
+        break;
+      }
+
+      case LLCP_TPX3_PXL_MODE_MPX_ITOT: {
+
+        // derandomize and deserialize the pixel data
+        decodePixelData((uint8_t*)&image->pixel_data[pix], 4, TPX3_MPX_ITOT);
+
+        x = ((LLCP_PixelDataMpxiToT_t*)&image->pixel_data[pix])->address % 256;
+        y = ((LLCP_PixelDataMpxiToT_t*)&image->pixel_data[pix])->address / 256;
+
+        mpx  = ((LLCP_PixelDataMpxiToT_t*)&image->pixel_data[pix])->event_counter;
+        itot = ((LLCP_PixelDataMpxiToT_t*)&image->pixel_data[pix])->itot;
+
+        toa  = 0;
+        ftoa = 0;
+        tot  = 0;
+
+        savePixelToTxtFile(x, y, mpx, itot);
+
+        break;
+      }
+    }
+  }
+
+  if(frameN == image->frame_id)
+  {
+    printf("frame %d\tcount of pixel in frame %ld\t occupancy of frame %.1f perc", frameN,  pixNCurr, (double)pixNCurr*100./(256.*256.));   
+    fflush(stdout);
+    printf("\r");     
+  }
+
+}
 
 #if GUI == 1
   /* Plotting //{ */
@@ -359,6 +467,11 @@ void Gatherer::callbackFrameData(const LLCP_Message_t* message_in) {
 
         mpx  = 0;
         itot = 0;
+
+        double time = toa*25. - ftoa*25./16.;
+
+        if(doSaveDataInTxt)
+          savePixelToTxtFile(x, y, tot, time);
 
         // FOR PLOTTING
         {
@@ -409,6 +522,9 @@ void Gatherer::callbackFrameData(const LLCP_Message_t* message_in) {
         toa  = 0;
         ftoa = 0;
         tot  = 0;
+
+        if(doSaveDataInTxt)
+          savePixelToTxtFile(x, y, mpx, itot);
 
         // FOR PLOTTING
         {
@@ -464,7 +580,7 @@ void Gatherer::callbackFrameTerminator(const LLCP_Message_t* message_in) {
 
   measuring_frame_ = false;
 
-  printf("received frame data terminator: frame id %d, packet count: %d\n", terminator->frame_id, terminator->n_packets);
+  // printf("received frame data terminator: frame id %d, packet count: %d\n", terminator->frame_id, terminator->n_packets);
 }
 
 //}

@@ -96,6 +96,16 @@ private:
   // | ------------ saving measured frames to a file ------------ |
 
   FILE* measured_data_file_;
+  bool doSaveDataInTxt = true;
+
+  int frameN = -1;   // count of frames
+  long int pixN = 0;  // count of pixels
+  long int pixNCurr = 0;  // count of pixels
+
+  void setdoSaveDataInTxt(bool set_doSaveDataInTxt) {doSaveDataInTxt = set_doSaveDataInTxt;}
+
+  int savePixelToTxtFile(int x, int y, double val_1, double val_2);
+
 
 #if GUI == 1
   // | ------------------------ plotting ------------------------ |

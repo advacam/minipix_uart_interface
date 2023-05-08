@@ -125,7 +125,7 @@ config number:\t\t'%d'\n",
   for (int i = 0; i < frame_count; i++) {
 
     //gatherer.getTemperature();
-    printf("measuring frame in TOA TOT:\t%d\n", i);
+    // printf("measuring frame in TOA TOT:\t%d\n", i);
     //sleep(0.01);
     // gatherer.setAcqTime(acq_time);
     gatherer.measureFrame(acq_time, LLCP_TPX3_PXL_MODE_TOA_TOT);
