@@ -12,7 +12,7 @@ To run the test, follow these steps:
 4. Go to `minipix_uart_interface/software/` and if directory `build` is present then remove it with `rm -r build`
 5. Run the test script `./test.sh`  (for example with some source of radiation on top of the aluminium protection) . It might be needed to give it a rules to be an executable with `chmod +x test.sh` and then run it. It should do the compilation, start simple acquisition of 10 frames with 0.25 s acq time and saves data into `example_interface/linux_test/out/test/data.txt` . 
 6. It also automatically analyses and creates simple plots of frames into the same path.
-![](fig/frame_0.png)
+![](../../../fig/frame_0.png)
 
 ## Measurement 
 
@@ -26,5 +26,5 @@ If the error still remains after several tries, please, contact technical suppor
 ## Test of functionality
 
 After running the test as it is described in the section `qucik start`, the first lead whether detector is still functional can be found in the produced plots. In the case of usage of stroncium 90, curly tracks should be seen in the detector and if default settings was used (250 ms of act time) then the features should as it is in the figure above (in the section `quick start`). The sum should be approximately 9e4 and maximum not higher than 300. This behaviour can be checked in the produced graphs:
-![](fig/max.png)
+![](../../../fig/max.png)
 where red lines limit the range of normal detector response.
