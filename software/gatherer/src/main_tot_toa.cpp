@@ -111,10 +111,10 @@ config number:\t\t'%d'\n",
 
   sleep(0.01);
 
-  printf("getting chip voltage\n");
-  gatherer.getChipVoltage();
+  // printf("getting chip voltage\n");
+  // gatherer.getChipVoltage();
 
-  sleep(0.01);
+  // sleep(0.01);
 
 
   // printf("initial temperature:\t%d\n", gatherer.temperature_curr );

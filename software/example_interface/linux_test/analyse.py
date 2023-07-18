@@ -15,6 +15,9 @@ def load_data(file_in_path_name, val_1_max = 1022):
 
 		data = []
 
+		n_pix_noisy = 0
+		pix_noisy = []
+
 		try:
 			with open(file_in_path_name, 'r') as file_in:
 				n_line = 0
@@ -49,11 +52,16 @@ def load_data(file_in_path_name, val_1_max = 1022):
 						val_1 = float(line_list[2])
 						val_2 = float(line_list[3])
 
-						if (val_1 == 1022):
-							print("[WARINING] Pixel with high response (x,y,tot, line, frame):" , x, y, val_1, n_line, frame_num)
-
+						# anomaly pixels in the reposne, always there
 						if (x == 26 and y == 120) or (x == 26 and y == 0):
 							continue
+
+						# check for noisy pixels
+						if (val_1 >= val_1_max):
+							n_pix_noisy += 1
+							pix_noisy.append([x,y,frame_num])
+							print("[WARINING] Pixel with high response (x,y,tot, line, frame):" , x, y, val_1, n_line, frame_num)
+
 
 						frame[x,y] = val_1
 
@@ -63,6 +71,13 @@ def load_data(file_in_path_name, val_1_max = 1022):
 		except IOError:
 			print("Can not open file: " + file_in_path_name )	
 			return -1, data
+
+		if n_pix_noisy != 0:
+			print("* Noisy pixels")
+			print("\tCount\t", n_pix_noisy)
+			print("\tPixels [x,y,frame]:")
+			for pix in pix_noisy:
+				print("\t ", pix)
 
 		return 0, data
 
@@ -123,6 +138,10 @@ def analyse_frames(frames, file_out_path):
 	sum_max = 110000
 	max_min = 100
 	max_max = 200	
+	occ_min = 5
+	occ_max = 7.5
+
+	i = 0
 
 	for frame in frames:
 
@@ -136,18 +155,32 @@ def analyse_frames(frames, file_out_path):
 		list_max.append(fr_max)
 
 		if fr_sum < sum_min:
-			print("[WARINING] Frame has low sum (sum, frame):" , fr_sum, frame_num)
+			print("[WARINING] Frame has low sum (sum, frame pos):" , fr_sum, i)
 		if fr_sum > sum_max:
-			print("[WARINING] Frame has high sum (sum, frame):" , fr_sum, frame_num)
+			print("[WARINING] Frame has high sum (sum, frame pos):" , fr_sum, i)
 		if fr_max < max_min:
-			print("[WARINING] Frame has low max (sum, frame):" , fr_max, frame_num)
+			print("[WARINING] Frame has low max (sum, frame pos):" , fr_max, i)
 		if fr_max > max_max:
-			print("[WARINING] Frame has high max (sum, frame):" , fr_max, frame_num)
-							
+			print("[WARINING] Frame has high max (sum, frame pos):" , fr_max, i)
+					
+		i += 1		
 
 	plot_graph_1d(file_out_path + "sum.png", list_fr_num, list_sum, "sum", "frame", "sum", sum_min  , sum_max )
 	plot_graph_1d(file_out_path + "max.png", list_fr_num, list_max, "max", "frame", "max", max_min , max_max )
-	plot_graph_1d(file_out_path + "occupancy.png", list_fr_num, list_occ, "occupancy", "frame", "occupancy", 5 , 7.5 )
+	plot_graph_1d(file_out_path + "occupancy.png", list_fr_num, list_occ, "occupancy", "frame", "occupancy", occ_min , occ_max )
+
+	sum_mean = np.mean(list_sum)
+	sum_std = np.std(list_sum)
+
+	occ_mean = np.mean(list_occ)
+	occ_std = np.std(list_occ)
+
+	max_mean = np.mean(list_max)
+	max_std = np.std(list_max)	
+
+	print("\tSum mean and std:\t", sum_mean, "\t" ,sum_std)
+	print("\tOcc mean and std:\t", occ_mean, "\t" ,occ_std)
+	print("\tMax mean and std:\t", max_mean, "\t" ,max_std)
 
 
 #Plot 1D graph with linear fuction defined with A_Slope and B_Shift
@@ -273,7 +306,7 @@ if __name__ == '__main__':
 
 
 	#  load data
-	rc, data = load_data(file_in_path_name, 500)
+	rc, data = load_data(file_in_path_name, 400)
 
 	# basic analysis
 

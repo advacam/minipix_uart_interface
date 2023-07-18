@@ -9,6 +9,7 @@
 #include <termios.h>  // POSIX terminal control definitions
 #include <sys/ioctl.h>
 #include <string>
+#include <cstdint>
 
 /* #include <boost/thread.hpp> */
 /* #include <boost/function.hpp> */

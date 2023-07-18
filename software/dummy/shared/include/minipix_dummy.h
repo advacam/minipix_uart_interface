@@ -6,6 +6,7 @@
 #include <mutex>
 
 #include <stdint.h>
+#include <cstdio>
 
 #include <llcp.h>
 #include <llcp_minipix_messages.h>
