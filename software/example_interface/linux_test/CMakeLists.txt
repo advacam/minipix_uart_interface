@@ -15,9 +15,10 @@ add_definitions(-Wpedantic)
 
 include_directories(
   include
-  include/llcp
-  include/mui
-  include/gatherer_interface
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../llcp/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../shared/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../mui/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../serial_port
 )
 
 add_executable(example_interface_lxtest
@@ -25,15 +26,17 @@ add_executable(example_interface_lxtest
 
   src/minipix_interface_linux.cpp
   src/gatherer_interface_linux.cpp
-  src/serial_port.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../serial_port/serial_port.cpp
 
-  src/gatherer_interface/gatherer_interface.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../shared/src/gatherer_interface.c
 
-  src/mui/mui.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../mui/src/mui.c
 
-  src/llcp/llcp.c
-  src/llcp/llcp_endian.c
-  src/llcp/llcp_minipix_messages.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../serial_port/serial_port.cpp
+
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../llcp/src/llcp.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../llcp/src/llcp_endian.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../llcp/src/llcp_minipix_messages.c
 )
 
 target_compile_definitions(example_interface_lxtest PRIVATE MUI_SEND_STRING=1)

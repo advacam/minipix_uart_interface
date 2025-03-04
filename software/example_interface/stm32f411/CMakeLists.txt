@@ -24,9 +24,9 @@ find_package(HAL COMPONENTS STM32F4 RCC UART GPIO DMA CORTEX REQUIRED)
 include_directories(
   include
   include/stm_core
-  include/llcp
-  include/mui
-  include/gatherer_interface
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../llcp/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../shared/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../mui/include
 )
 
 add_executable(main
@@ -35,15 +35,15 @@ add_executable(main
   src/stm_core/stm32f4xx_it.c
   src/stm_core/stm32f4xx_hal_msp.c
 
-  src/mui/mui.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../mui/src/mui.c
   src/minipix_interface_stm.c
 
-  src/gatherer_interface/gatherer_interface.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../shared/src/gatherer_interface.c
   src/gatherer_interface_stm.c
 
-  src/llcp/llcp.c
-  src/llcp/llcp_endian.c
-  src/llcp/llcp_minipix_messages.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../llcp/src/llcp.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../llcp/src/llcp_endian.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../llcp/src/llcp_minipix_messages.c
 )
 
 target_compile_definitions(main PRIVATE MUI_SEND_STRING=1)

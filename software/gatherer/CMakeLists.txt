@@ -26,7 +26,8 @@ find_package(Threads REQUIRED) # only for linux
 
 set(INCLUDE_DIRS
   include
-  include/llcp
+  ${CMAKE_CURRENT_SOURCE_DIR}/../llcp/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../serial_port
   )
 
 set(LINK_LIBS
@@ -55,38 +56,33 @@ add_executable(gatherer_tot_toa
   src/main_tot_toa.cpp
   src/gatherer.cpp
   src/pixel_decoder.c
-  src/serial_port.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/../serial_port/serial_port.cpp
 
-  src/llcp/llcp.c
-  src/llcp/llcp_endian.c
-  src/llcp/llcp_minipix_messages.c
-)
-
-include_directories(
-  ${INCLUDE_DIRS}
+  ${CMAKE_CURRENT_SOURCE_DIR}/../llcp/src/llcp.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../llcp/src/llcp_endian.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../llcp/src/llcp_minipix_messages.c
 )
 
 target_link_libraries(gatherer_tot_toa
   ${LINK_LIBS}
 )
 
-target_compile_definitions(gatherer_tot_toa PRIVATE GUI=${GUI})
+include_directories(
+  ${INCLUDE_DIRS} 
+)
 
+target_compile_definitions(gatherer_tot_toa PRIVATE GUI=${GUI})
 
 
 add_executable(gatherer
   src/main.cpp
   src/gatherer.cpp
   src/pixel_decoder.c
-  src/serial_port.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/../serial_port/serial_port.cpp
 
-  src/llcp/llcp.c
-  src/llcp/llcp_endian.c
-  src/llcp/llcp_minipix_messages.c
-)
-
-include_directories(
-  ${INCLUDE_DIRS}
+  ${CMAKE_CURRENT_SOURCE_DIR}/../llcp/src/llcp.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../llcp/src/llcp_endian.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../llcp/src/llcp_minipix_messages.c
 )
 
 target_link_libraries(gatherer

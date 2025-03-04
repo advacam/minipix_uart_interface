@@ -15,22 +15,22 @@ add_definitions(-Wpedantic)
 
 include_directories(
   include
-  include/llcp
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../serial_port
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../llcp/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../shared/include
 )
 
 find_package(Threads) # only for linux
 
 add_executable(minipix_dummy
   src/main.cpp
-  src/serial_port.cpp
   src/minipix_dummy_linux.cpp
-  src/minipix_dummy.cpp
-
-  src/llcp/llcp.c
-  src/llcp/llcp_endian.c
-  src/llcp/llcp_minipix_messages.c
-
-  src/pixel_encoder.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../serial_port/serial_port.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../llcp/src/llcp.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../llcp/src/llcp_endian.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../llcp/src/llcp_minipix_messages.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../shared/src/pixel_encoder.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../shared/src/minipix_dummy.cpp
 )
 
 target_link_libraries(minipix_dummy

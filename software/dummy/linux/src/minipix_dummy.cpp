@@ -1,1 +1,0 @@
-../../shared/src/minipix_dummy.cpp

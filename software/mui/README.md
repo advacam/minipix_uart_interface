@@ -44,7 +44,7 @@ Debug print can be enabled in LLCP by defining:
 #define LLCP_DEBUG_PRINT 1
 ```
 
-For more niche options, see ![llcp.h](../llcp/include/llcp.h).
+For more niche options, see ![llcp.h](../llcp/${CMAKE_SOURCE_DIR}/llcp/inlcude.h).
 
 ### MUI customization
 

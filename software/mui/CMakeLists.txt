@@ -13,14 +13,14 @@ add_definitions(-Wpedantic)
 
 include_directories(
   include
-  include/llcp
+  ${CMAKE_CURRENT_SOURCE_DIR}/../llcp/include
 )
 
 add_library(mui
   src/mui.c
-  src/llcp/llcp.c
-  src/llcp/llcp_endian.c
-  src/llcp/llcp_minipix_messages.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../llcp/src/llcp.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../llcp/src/llcp_endian.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../llcp/src/llcp_minipix_messages.c
 )
 
 target_compile_definitions(mui PRIVATE MUI_SEND_STRING=1)
