@@ -575,12 +575,12 @@ void init_LLCP_TemperatureMsg_t(LLCP_TemperatureMsg_t* msg) {
 
 void hton_LLCP_ChipVoltage_t(LLCP_ChipVoltage_t* data) {
 
-  data->chip_voltage = llcp_hton32(data->chip_voltage);
+  data->chip_voltage = llcp_hton16(data->chip_voltage);
 }
 
 void ntoh_LLCP_ChipVoltage_t(LLCP_ChipVoltage_t* data) {
 
-  data->chip_voltage = llcp_ntoh32(data->chip_voltage);
+  data->chip_voltage = llcp_ntoh16(data->chip_voltage);
 }
 
 void init_LLCP_ChipVoltage_t(LLCP_ChipVoltage_t* data) {

@@ -1216,7 +1216,7 @@ static_assert((sizeof(LLCP_GetTemperatureReqMsg_t) > 255) == 0, "LLCP_GetTempera
  */
 typedef struct __attribute__((packed))
 {
-  int16_t chip_voltage;
+  int16_t chip_voltage; // in milivolts
 } LLCP_ChipVoltage_t;
 
 /**

@@ -623,7 +623,7 @@ void Gatherer::callbackChipVoltage(const LLCP_Message_t* message_in) {
   ntoh_LLCP_ChipVoltageMsg_t(msg);
   LLCP_ChipVoltage_t* chip_voltage = (LLCP_ChipVoltage_t*)&msg->payload;
 
-  printf("received chip voltage: %d V\n", chip_voltage->chip_voltage);
+  printf("received chip voltage: %d mV\n", chip_voltage->chip_voltage);
 
   waiting_for_tmp_ = false;
 }
