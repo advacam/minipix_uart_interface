@@ -623,7 +623,7 @@ void Gatherer::callbackChipVoltage(const LLCP_Message_t* message_in) {
   ntoh_LLCP_ChipVoltageMsg_t(msg);
   LLCP_ChipVoltage_t* chip_voltage = (LLCP_ChipVoltage_t*)&msg->payload;
 
-  printf("received chip voltage: %d deg\n", chip_voltage->chip_voltage);
+  printf("received chip voltage: %d V\n", chip_voltage->chip_voltage);
 
   waiting_for_tmp_ = false;
 }
@@ -677,6 +677,7 @@ void Gatherer::callbackError(const LLCP_Message_t* message_in) {
 
     case LLCP_MINIPIX_ERROR_POWERUP_FAILED: {
 
+      power_up_failed_ = true;
       printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_FAILED]);
 
       break;
@@ -684,6 +685,7 @@ void Gatherer::callbackError(const LLCP_Message_t* message_in) {
 
     case LLCP_MINIPIX_ERROR_POWERUP_TPX3_RESET_SYNC: {
 
+      power_up_failed_ = true;
       printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_RESET_SYNC]);
 
       break;
@@ -691,6 +693,7 @@ void Gatherer::callbackError(const LLCP_Message_t* message_in) {
 
     case LLCP_MINIPIX_ERROR_POWERUP_TPX3_RESET_RECVDATA: {
 
+      power_up_failed_ = true;
       printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_RESET_RECVDATA]);
 
       break;
@@ -698,6 +701,7 @@ void Gatherer::callbackError(const LLCP_Message_t* message_in) {
 
     case LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_RESETS: {
 
+      power_up_failed_ = true;
       printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_RESETS]);
 
       break;
@@ -705,6 +709,7 @@ void Gatherer::callbackError(const LLCP_Message_t* message_in) {
 
     case LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_CHIPID: {
 
+      power_up_failed_ = true;
       printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_CHIPID]);
 
       break;
@@ -712,6 +717,7 @@ void Gatherer::callbackError(const LLCP_Message_t* message_in) {
 
     case LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_DACS: {
 
+      power_up_failed_ = true;
       printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_DACS]);
 
       break;
@@ -719,6 +725,7 @@ void Gatherer::callbackError(const LLCP_Message_t* message_in) {
 
     case LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_PIXCFG: {
 
+      power_up_failed_ = true;
       printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_PIXCFG]);
 
       break;
@@ -726,6 +733,7 @@ void Gatherer::callbackError(const LLCP_Message_t* message_in) {
 
     case LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_MATRIX: {
 
+      power_up_failed_ = true;
       printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_MATRIX]);
 
       break;
@@ -915,6 +923,10 @@ void Gatherer::measureFrame(const uint16_t& acquisition_time_ms, const uint8_t& 
 /* pwr() //{ */
 
 void Gatherer::pwr(const bool& state) {
+
+  printf("power up cmd\n");
+
+  power_up_failed_ = false;
 
   // create the message
   LLCP_PwrReqMsg_t msg;

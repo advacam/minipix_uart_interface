@@ -63,6 +63,7 @@ public:
   bool waiting_for_ack_    = false;
   bool waiting_for_tmp_    = false;
   bool waiting_for_status_ = false;
+  bool power_up_failed_    = false;
 
 private:
   SerialPort serial_port_;

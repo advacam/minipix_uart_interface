@@ -74,10 +74,29 @@ config number:\t\t'%d'\n",
 
   sleep(0.01);
 
-  gatherer.pwr(true);
-  printf("powering on\n");
+  printf("getting temperature\n");
+  gatherer.getTemperature();
 
   sleep(0.01);
+
+  // power up cycling
+  int cycle_count = 10;
+  int cycle_current = 0;
+  double wait_for_power_up = 5.; // wait in seconds to get reposnse about error or not error of power up
+  do
+  {
+    cycle_current++;
+    printf("power up main, try: %d\n", cycle_current);
+    gatherer.pwr(true);
+    sleep(wait_for_power_up);
+    if(cycle_current > cycle_count){
+      printf("failed to power up device\n");
+      exit(1);
+    }
+  } while (gatherer.power_up_failed_);
+  
+  sleep(0.01);
+
 
   /* printf("masking pixels\n"); */
   /* int square_size = 20; */
@@ -99,22 +118,14 @@ config number:\t\t'%d'\n",
   // if(conf_num != 1 && conf_num != 0) 
   //   conf_num = 0;
 
-  // gatherer.setConfigurationPreset(conf_num);
 
-  /* printf("setting configuration preset 1\n"); */
-  /* gatherer.setConfigurationPreset(1); */
+  printf("setting configuration preset %d\n", conf_num);
+  gatherer.setConfigurationPreset(conf_num);
 
-  sleep(0.01);
-
-  printf("getting temperature\n");
-  gatherer.getTemperature();
+  printf("getting chip voltage\n");
+  gatherer.getChipVoltage();
 
   sleep(0.01);
-
-  // printf("getting chip voltage\n");
-  // gatherer.getChipVoltage();
-
-  // sleep(0.01);
 
 
   // printf("initial temperature:\t%d\n", gatherer.temperature_curr );
