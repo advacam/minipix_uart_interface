@@ -83,6 +83,15 @@ void mui_linux_processChipVoltage(const LLCP_ChipVoltage_t *data) {
 
 //}
 
+/* mui_linux_processFwVer() //{ */
+
+void mui_linux_processFwVer(const LLCP_FwVer_t *data) {
+
+  gatherer_processFwVer(&gatherer_handler_, data);
+}
+
+//}
+
 /* mui_linux_processAck() //{ */
 
 void mui_linux_processAck(const LLCP_Ack_t *data) {

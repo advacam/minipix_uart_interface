@@ -98,6 +98,15 @@ void mui_stm_processChipVoltage(const LLCP_ChipVoltage_t *data) {
 
 //}
 
+/* mui_stm_processFwVer() //{ */
+
+void mui_stm_processFwVer(const LLCP_FwVer_t *data) {
+
+  gatherer_processFwVer((Gatherer_Handler_t *)gatherer_handler_ptr_, data);
+}
+
+//}
+
 /* mui_stm_processAck() //{ */
 
 void mui_stm_processAck(const LLCP_Ack_t *data) {
