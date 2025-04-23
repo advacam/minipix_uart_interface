@@ -43,6 +43,7 @@ int main(int argc, char *argv[]) {
   mui_handler.fcns.processStatus                   = &mui_linux_processStatus;
   mui_handler.fcns.processTemperature              = &mui_linux_processTemperature;
   mui_handler.fcns.processChipVoltage              = &mui_linux_processChipVoltage;
+  mui_handler.fcns.processFwVer                    = &mui_linux_processFwVer;
   mui_handler.fcns.processAck                      = &mui_linux_processAck;
   mui_handler.fcns.processMinipixError             = &mui_linux_processMinipixError;
   mui_handler.fcns.processFrameMeasurementFinished = &mui_linux_processMeasurementFinished;

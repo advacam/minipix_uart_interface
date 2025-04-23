@@ -21,6 +21,7 @@ std::thread thread_serial_;
 
 std::atomic<bool> got_ack_         = false;
 std::atomic<bool> measuring_frame_ = false;
+std::atomic<bool> power_up_failed_ = false;
 uint16_t          save_max_pixels_;
 uint16_t          number_of_pixels_saved_;
 uint16_t          number_of_pixels_not_saved_;
@@ -217,8 +218,103 @@ void mui_linux_processAck([[maybe_unused]] const LLCP_Ack_t *data) {
 
 void mui_linux_processMinipixError([[maybe_unused]] const LLCP_MinipixError_t *data) {
 
+
+
   // TODO OneWeb
   // please save these errors
+
+
+  LLCP_MinipixErrorMsg_t* msg = (LLCP_MinipixErrorMsg_t*)data;
+  ntoh_LLCP_MinipixErrorMsg_t(msg);
+  LLCP_MinipixError_t* error = (LLCP_MinipixError_t*)&msg->payload;
+
+  switch (error->error_id) {
+
+    case LLCP_MINIPIX_ERROR_MEASUREMENT_FAILED: {
+
+      printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_MEASUREMENT_FAILED]);
+
+      measuring_frame_ = false;
+
+      break;
+    }
+
+    case LLCP_MINIPIX_ERROR_POWERUP_FAILED: {
+
+      power_up_failed_ = true;
+      printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_FAILED]);
+
+      break;
+    }
+
+    case LLCP_MINIPIX_ERROR_POWERUP_TPX3_RESET_SYNC: {
+
+      power_up_failed_ = true;
+      printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_RESET_SYNC]);
+
+      break;
+    }
+
+    case LLCP_MINIPIX_ERROR_POWERUP_TPX3_RESET_RECVDATA: {
+
+      power_up_failed_ = true;
+      printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_RESET_RECVDATA]);
+
+      break;
+    }
+
+    case LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_RESETS: {
+
+      power_up_failed_ = true;
+      printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_RESETS]);
+
+      break;
+    }
+
+    case LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_CHIPID: {
+
+      power_up_failed_ = true;
+      printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_CHIPID]);
+
+      break;
+    }
+
+    case LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_DACS: {
+
+      power_up_failed_ = true;
+      printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_DACS]);
+
+      break;
+    }
+
+    case LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_PIXCFG: {
+
+      power_up_failed_ = true;
+      printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_PIXCFG]);
+
+      break;
+    }
+
+    case LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_MATRIX: {
+
+      power_up_failed_ = true;
+      printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_MATRIX]);
+
+      break;
+    }
+
+    case LLCP_MINIPIX_ERROR_INVALID_PRESET: {
+
+      printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_INVALID_PRESET]);
+
+      break;
+    }
+
+    default: {
+      printf("Error: received unhandled error message, id %d\n", error->error_id);
+    }
+  }
+
 }
 
 //}
@@ -290,7 +386,7 @@ void mui_linux_sendString(const uint8_t *str_out, const uint16_t len) {
 
 /* measurementA1() //{ */
 
-void measurementA1(uint16_t desired_occupancy, int pixel_mode, uint16_t threshold_coarse, uint16_t threshold_fine, uint16_t default_acquisition_time,
+void measurementA1(uint16_t desired_occupancy, int pixel_mode, uint16_t default_acquisition_time,
                    int configuration_id, bool use_temp_for_config, uint16_t temp_threshold, uint16_t save_max_pixels, uint16_t min_acq_time,
                    uint16_t max_acq_time) {
 
@@ -359,19 +455,19 @@ void measurementA1(uint16_t desired_occupancy, int pixel_mode, uint16_t threshol
 
   // | ---------------------- set threshold --------------------- |
 
-  {
-    printf("[A1] setting threshold\n");
+  // {
+  //   printf("[A1] setting threshold\n");
 
-    mui_setThreshold(&mui_handler_, threshold_coarse, threshold_fine);
+  //   mui_setThreshold(&mui_handler_, threshold_coarse, threshold_fine);
 
-    // wait for acknowledge
-    while (!got_ack_) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-    got_ack_ = false;
-  }
+  //   // wait for acknowledge
+  //   while (!got_ack_) {
+  //     std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  //   }
+  //   got_ack_ = false;
+  // }
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  // std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
   // | ---------------- do short testing exposure --------------- |
 
@@ -502,7 +598,7 @@ void measurementA1(uint16_t desired_occupancy, int pixel_mode, uint16_t threshol
 
 /* measurementA2() //{ */
 
-void measurementA2(int pixel_mode, uint16_t acquisition_time_ms, uint16_t threshold_coarse, uint16_t threshold_fine, int configuration_id,
+void measurementA2(int pixel_mode, uint16_t acquisition_time_ms, int configuration_id,
                    bool use_temp_for_config, uint16_t temp_threshold, uint16_t save_max_pixels) {
 
   printf("Measurement mode A2\n");
@@ -531,7 +627,7 @@ void measurementA2(int pixel_mode, uint16_t acquisition_time_ms, uint16_t thresh
   // | ------------------- measure temperatur ------------------- |
 
   {
-    printf("[A1] getting temperature\n");
+    printf("[A2] getting temperature\n");
 
     getTemperature();
 
@@ -571,24 +667,24 @@ void measurementA2(int pixel_mode, uint16_t acquisition_time_ms, uint16_t thresh
 
   // | ---------------------- set threshold --------------------- |
 
-  {
-    printf("[A2] setting threshold\n");
+  // {
+  //   printf("[A2] setting threshold\n");
 
-    mui_setThreshold(&mui_handler_, threshold_coarse, threshold_fine);
+  //   mui_setThreshold(&mui_handler_, threshold_coarse, threshold_fine);
 
-    // wait for acknowledge
-    while (!got_ack_) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-    got_ack_ = false;
-  }
+  //   // wait for acknowledge
+  //   while (!got_ack_) {
+  //     std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  //   }
+  //   got_ack_ = false;
+  // }
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  // std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
   // | -------- Do 1 ms exposure and save the pixel count ------- |
 
   {
-    printf("[A2] measuring image\n");
+    printf("[A2] measuring image with time %d\n", acquisition_time_ms);
 
     save_max_pixels_            = save_max_pixels;
     number_of_pixels_saved_     = 0;
@@ -725,9 +821,7 @@ int main(int argc, char *argv[]) {
 
   // the following parameters should be configurable from Earth
 
-  // global parameters
-  uint16_t PARAM_THRESHOLD_COARSE      = 120;
-  uint16_t PARAM_THRESHOLD_FINE        = 350;
+  // global parameters 
   bool     PARAM_SET_CONFIG_USING_TEMP = false;
   uint16_t PARAM_CONFIG_TEMP_THRESHOLD = 35;
 
@@ -742,18 +836,18 @@ int main(int argc, char *argv[]) {
 
   // A2-specific parameters
   uint8_t  PARAM_A2_CONFIGURATION_ID = 0;
-  uint16_t PARAM_A2_ACQUISITION_TIME = 60000;
+  uint16_t PARAM_A2_ACQUISITION_TIME = 10000;  // milliseconds
   uint8_t  PARAM_A2_PXL_MODE         = LLCP_TPX3_PXL_MODE_MPX_ITOT;  // {0, 1, 2}
   uint16_t PARAM_A2_SAVE_MAX_PIXELS  = 3024;
 
   for (int i = 0; i < 10; i++) {
 
-    measurementA1(PARAM_A1_DESIRED_OCCUPANCY_PX, PARAM_A1_PXL_MODE, PARAM_THRESHOLD_COARSE, PARAM_THRESHOLD_FINE, PARAM_A1_DEFAULT_ACQUISITION_TIME,
+    measurementA1(PARAM_A1_DESIRED_OCCUPANCY_PX, PARAM_A1_PXL_MODE, PARAM_A1_DEFAULT_ACQUISITION_TIME,
                   PARAM_A1_CONFIGURATION_ID, PARAM_SET_CONFIG_USING_TEMP, PARAM_CONFIG_TEMP_THRESHOLD, PARAM_A1_SAVE_MAX_PIXELS, PARAM_A1_MIN_ACQUISITION_TIME,
                   PARAM_A1_MAX_ACQUISITION_TIME);
 
     for (int j = 0; j < 6; j++) {
-      measurementA2(PARAM_A2_PXL_MODE, PARAM_A2_ACQUISITION_TIME, PARAM_THRESHOLD_COARSE, PARAM_THRESHOLD_FINE, PARAM_A2_CONFIGURATION_ID,
+      measurementA2(PARAM_A2_PXL_MODE, PARAM_A2_ACQUISITION_TIME, PARAM_A2_CONFIGURATION_ID,
                     PARAM_SET_CONFIG_USING_TEMP, PARAM_CONFIG_TEMP_THRESHOLD, PARAM_A2_SAVE_MAX_PIXELS);
     }
   }

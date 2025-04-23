@@ -122,6 +122,14 @@ typedef void (*mui_processChipVoltage_t)(const LLCP_ChipVoltage_t *chip_voltage_
 
 /**
  * @brief Function pointer to user implementation of callback to process
+ * incoming FwVer message.
+ *
+ * @param pointer to the structure with the data
+ */
+typedef void (*mui_processFwVer_t)(const LLCP_FwVer_t *fw_ver_data);
+
+/**
+ * @brief Function pointer to user implementation of callback to process
  * incoming Ack message.
  *
  * @param pointer to the structure with the data
@@ -158,6 +166,7 @@ typedef struct
   mui_processStatus_t                   processStatus;
   mui_processTemperature_t              processTemperature;
   mui_processChipVoltage_t              processChipVoltage;
+  mui_processFwVer_t                    processFwVer;
   mui_processAck_t                      processAck;
   mui_processMinipixError_t             processMinipixError;
   mui_processFrameMeasurementFinished_t processFrameMeasurementFinished;
@@ -271,6 +280,16 @@ void mui_getTemperature(MUI_Handler_t *mui_handle);
  * @param mui_handle
  */
 void mui_getChipVoltage(MUI_Handler_t *mui_handle);
+
+/**
+ * @brief Command to get the fw version of the MinixPIX. As a result,
+ * the method
+ *                          processFwVer()
+ * will get called.
+ *
+ * @param mui_handle
+ */
+void mui_getFwVer(MUI_Handler_t *mui_handle);
 
 // | ------------- UART communication with MiniPIX ------------ |
 

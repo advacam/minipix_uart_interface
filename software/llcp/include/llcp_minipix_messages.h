@@ -26,6 +26,8 @@ extern "C" {
 #define LLCP_GET_TEMPERATURE_REQ_MSG_ID 13
 #define LLCP_CHIP_VOLTAGE_MSG_ID 14
 #define LLCP_GET_CHIP_VOLTAGE_REQ_MSG_ID 15
+#define LLCP_CPU_FW_VER_MSG_ID 16
+#define LLCP_GET_CPU_FW_VER_REQ_MSG_ID 17
 
 // frame-based measurement
 #define LLCP_FRAME_DATA_MSG_ID 20
@@ -1226,7 +1228,7 @@ static_assert((sizeof(LLCP_GetTemperatureReqMsg_t) > 255) == 0, "LLCP_GetTempera
  */
 typedef struct __attribute__((packed))
 {
-  int16_t chip_voltage;
+  int16_t chip_voltage; // in milivolts
 } LLCP_ChipVoltage_t;
 
 /**
@@ -1318,6 +1320,111 @@ void ntoh_LLCP_GetChipVoltageReqMsg_t(LLCP_GetChipVoltageReqMsg_t* msg);
 void init_LLCP_GetChipVoltageReqMsg_t(LLCP_GetChipVoltageReqMsg_t* msg);
 
 static_assert((sizeof(LLCP_GetChipVoltageReqMsg_t) > 255) == 0, "LLCP_GetChipVoltageReqMsg_t is too large");
+
+//}
+
+/* LLCP_FwVerMsg_t //{ */
+
+/* LLCP_FwVer_t //{ */
+
+/**
+ * @brief Message data for LLCP_FwVerMsg_t
+ */
+typedef struct __attribute__((packed))
+{
+  uint32_t CpuFwVer;
+  uint32_t FpgaFwVer;
+} LLCP_FwVer_t;
+
+/**
+ * @brief host-to-network conversion for LLCP_FwVer_t
+ *
+ * @param data
+ */
+void hton_LLCP_FwVer_t(LLCP_FwVer_t* data);
+
+/**
+ * @brief network-to-host conversion for LLCP_FwVer_t
+ *
+ * @param data
+ */
+void ntoh_LLCP_FwVer_t(LLCP_FwVer_t* data);
+
+/**
+ * @brief "constructor" for LLCP_FwVer_t
+ *
+ * @param data
+ */
+void init_LLCP_FwVer_t(LLCP_FwVer_t* data);
+
+//}
+
+/**
+ * @brief LLCP Message for MiniPIX fw version.
+ */
+typedef struct __attribute__((packed))
+{
+  uint8_t      message_id;
+  LLCP_FwVer_t payload;
+} LLCP_FwVerMsg_t;
+
+/**
+ * @brief host-to-network conversion for LLCP_FwVerMsg_t
+ *
+ * @param msg
+ */
+void hton_LLCP_FwVerMsg_t(LLCP_FwVerMsg_t* msg);
+
+/**
+ * @brief network-to-host conversion for LLCP_FwVerMsg_t
+ *
+ * @param msg
+ */
+void ntoh_LLCP_FwVerMsg_t(LLCP_FwVerMsg_t* msg);
+
+/**
+ * @brief "constructor" for LLCP_FwVerMsg_t
+ *
+ * @param msg
+ */
+void init_LLCP_FwVerMsg_t(LLCP_FwVerMsg_t* msg);
+
+static_assert((sizeof(LLCP_FwVerMsg_t) > 255) == 0, "LLCP_FwVerMsg_t is too large");
+
+//}
+
+/* LLCP_GetFwVerReqMsg_t //{ */
+
+/**
+ * @brief LLCP Message for requesting a MiniPIX fw version.
+ */
+typedef struct __attribute__((packed))
+{
+  uint8_t message_id;
+} LLCP_GetFwVerReqMsg_t;
+
+/**
+ * @brief host-to-network conversion for LLCP_GetFwVerReqMsg_t
+ *
+ * @param msg
+ */
+void hton_LLCP_GetFwVerReqMsg_t(LLCP_GetFwVerReqMsg_t* msg);
+
+/**
+ * @brief network-to-host conversion for LLCP_GetFwVerReqMsg_t
+ *
+ * @param msg
+ */
+void ntoh_LLCP_GetFwVerReqMsg_t(LLCP_GetFwVerReqMsg_t* msg);
+
+/**
+ * @brief "constructor" for LLCP_GetFwVerReqMsg_t
+ *
+ * @param msg
+ */
+void init_LLCP_GetFwVerReqMsg_t(LLCP_GetFwVerReqMsg_t* msg);
+
+static_assert((sizeof(LLCP_GetFwVerReqMsg_t) > 255) == 0, "LLCP_GetFwVerReqMsg_t is too large");
 
 //}
 

@@ -299,12 +299,34 @@ void MinipixDummy::serialDataCallback(const uint8_t *bytes_in, const uint16_t &l
           init_LLCP_ChipVoltageMsg_t(&chip_voltage_msg);
 
           // fill in the payload
-          chip_voltage_msg.payload.chip_voltage = 1.8;
+          chip_voltage_msg.payload.chip_voltage = 1800;
 
           // convert to network endian
           hton_LLCP_ChipVoltageMsg_t(&chip_voltage_msg);
 
           uint16_t n_bytes = llcp_prepareMessage((uint8_t *)&chip_voltage_msg, sizeof(chip_voltage_msg), tx_buffer_);
+
+          sendMessage(tx_buffer_, n_bytes);
+
+          break;
+        };
+
+        case LLCP_GET_CPU_FW_VER_REQ_MSG_ID: {
+
+          printf("received fw version request\n");
+
+          // create the message
+          LLCP_FwVerMsg_t fw_ver_msg;
+          init_LLCP_FwVerMsg_t(&fw_ver_msg);
+
+          // fill in the payload
+          fw_ver_msg.payload.CpuFwVer = 1;
+          fw_ver_msg.payload.FpgaFwVer = 2;
+
+          // convert to network endian
+          hton_LLCP_FwVerMsg_t(&fw_ver_msg);
+
+          uint16_t n_bytes = llcp_prepareMessage((uint8_t *)&fw_ver_msg, sizeof(fw_ver_msg), tx_buffer_);
 
           sendMessage(tx_buffer_, n_bytes);
 

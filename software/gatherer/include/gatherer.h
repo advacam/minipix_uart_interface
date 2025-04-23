@@ -49,6 +49,7 @@ public:
   void getStatus(void);
   void getTemperature(void);
   void getChipVoltage(void);
+  void getFwVer(void);
   void measureFrame(const uint16_t& acquisition_time_ms, const uint8_t& mode);
   void pwr(const bool& state);
   void maskPixel(const uint8_t& x, const uint8_t& y, const bool state);
@@ -84,6 +85,7 @@ private:
   void callbackStatus(const LLCP_Message_t* message_in);
   void callbackTemperature(const LLCP_Message_t* message_in);
   void callbackChipVoltage(const LLCP_Message_t* message_in);
+  void callbackFwVer(const LLCP_Message_t* message_in);
   void callbackFrameTerminator(const LLCP_Message_t* message_in);
   void callbackAck(const LLCP_Message_t* message_in);
   void callbackFrameMeasurementFinished(const LLCP_Message_t* message_in);

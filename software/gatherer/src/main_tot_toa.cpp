@@ -79,6 +79,16 @@ config number:\t\t'%d'\n",
 
   sleep(0.01);
 
+  printf("getting chip voltage\n");
+  gatherer.getChipVoltage();
+
+  sleep(0.01);
+
+  printf("getting fw version\n");
+  gatherer.getFwVer();
+
+  sleep(0.01);
+
   // power up cycling
   int cycle_count = 10;
   int cycle_current = 0;

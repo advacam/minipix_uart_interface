@@ -75,6 +75,7 @@ void gatherer_processFrameDataTerminator(Gatherer_Handler_t *gatherer_handler, c
 void gatherer_processStatus(Gatherer_Handler_t *gatherer_handler, const LLCP_Status_t *data);
 void gatherer_processTemperature(Gatherer_Handler_t *gatherer_handler, const LLCP_Temperature_t *data);
 void gatherer_processChipVoltage(Gatherer_Handler_t *gatherer_handler, const LLCP_ChipVoltage_t *data);
+void gatherer_processFwVer(Gatherer_Handler_t *gatherer_handler, const LLCP_FwVer_t *data);
 void gatherer_processAck(Gatherer_Handler_t *gatherer_handler, const LLCP_Ack_t *data);
 void gatherer_processMinipixError(Gatherer_Handler_t *gatherer_handler, const LLCP_MinipixError_t *data);
 void gatherer_processFrameMeasurementFinished(Gatherer_Handler_t *gatherer_handler);

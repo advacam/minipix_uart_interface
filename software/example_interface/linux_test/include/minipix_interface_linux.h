@@ -22,6 +22,7 @@ void mui_linux_processFrameDataTerminator(const LLCP_FrameDataTerminator_t *data
 void mui_linux_processStatus(const LLCP_Status_t *data);
 void mui_linux_processTemperature(const LLCP_Temperature_t *data);
 void mui_linux_processChipVoltage(const LLCP_ChipVoltage_t *data);
+void mui_linux_processFwVer(const LLCP_FwVer_t *data);
 void mui_linux_processAck(const LLCP_Ack_t *data);
 void mui_linux_processMinipixError(const LLCP_MinipixError_t *data);
 void mui_linux_processMeasurementFinished();

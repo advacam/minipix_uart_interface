@@ -158,6 +158,17 @@ void Gatherer::threadMain(void) {
               break;
             };
 
+            case LLCP_CPU_FW_VER_MSG_ID: {
+
+              callbackFwVer(message_in);
+
+#if MUI_USER_HANDSHAKES == 1
+              sendAck(true);
+#endif
+
+              break;
+            };
+
             case LLCP_FRAME_DATA_TERMINATOR_MSG_ID: {
 
               callbackFrameTerminator(message_in);
@@ -623,7 +634,27 @@ void Gatherer::callbackChipVoltage(const LLCP_Message_t* message_in) {
   ntoh_LLCP_ChipVoltageMsg_t(msg);
   LLCP_ChipVoltage_t* chip_voltage = (LLCP_ChipVoltage_t*)&msg->payload;
 
-  printf("received chip voltage: %d V\n", chip_voltage->chip_voltage);
+  printf("received chip voltage: %d mV\n", chip_voltage->chip_voltage);
+
+  waiting_for_tmp_ = false;
+}
+
+//}
+
+/* callbackFwVer() //{ */
+
+void Gatherer::callbackFwVer(const LLCP_Message_t* message_in) {
+
+  LLCP_FwVerMsg_t* msg = (LLCP_FwVerMsg_t*)message_in;
+  ntoh_LLCP_FwVerMsg_t(msg);
+  LLCP_FwVer_t* fwVer = (LLCP_FwVer_t*)&msg->payload;
+
+  uint8_t* fw;
+  fw = (uint8_t*)(&fwVer->FpgaFwVer);
+  printf("FPGA Firmware version: %x.%x (%x.%x.20%x)\n", (fw[3] >> 4), (fw[3] & 0xF), fw[2], fw[1], fw[0]);
+
+  fw = (uint8_t*)(&fwVer->CpuFwVer);
+  printf("CPU Firmware version: %x.%x (%x.%x.20%x)\n", (fw[3] >> 4), (fw[3] & 0xF), fw[2], fw[1], fw[0]);
 
   waiting_for_tmp_ = false;
 }
@@ -868,6 +899,34 @@ void Gatherer::getChipVoltage(void) {
 
   // convert to network endian
   hton_LLCP_GetChipVoltageReqMsg_t(&msg);
+
+  uint16_t n_bytes = llcp_prepareMessage((uint8_t*)&msg, sizeof(msg), tx_buffer);
+
+  {
+    std::scoped_lock lock(mutex_serial_port_);
+
+    serial_port_.sendCharArray(tx_buffer, n_bytes);
+  }
+
+  waiting_for_tmp_ = true;
+
+  while (waiting_for_tmp_) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+}
+
+//}
+
+/* getFwVer() //{ */
+
+void Gatherer::getFwVer(void) {
+
+  // create the message
+  LLCP_GetFwVerReqMsg_t msg;
+  init_LLCP_GetFwVerReqMsg_t(&msg);
+
+  // convert to network endian
+  hton_LLCP_GetFwVerReqMsg_t(&msg);
 
   uint16_t n_bytes = llcp_prepareMessage((uint8_t*)&msg, sizeof(msg), tx_buffer);
 

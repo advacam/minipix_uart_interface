@@ -575,12 +575,12 @@ void init_LLCP_TemperatureMsg_t(LLCP_TemperatureMsg_t* msg) {
 
 void hton_LLCP_ChipVoltage_t(LLCP_ChipVoltage_t* data) {
 
-  data->chip_voltage = llcp_hton32(data->chip_voltage);
+  data->chip_voltage = llcp_hton16(data->chip_voltage);
 }
 
 void ntoh_LLCP_ChipVoltage_t(LLCP_ChipVoltage_t* data) {
 
-  data->chip_voltage = llcp_ntoh32(data->chip_voltage);
+  data->chip_voltage = llcp_ntoh16(data->chip_voltage);
 }
 
 void init_LLCP_ChipVoltage_t(LLCP_ChipVoltage_t* data) {
@@ -605,6 +605,48 @@ void init_LLCP_ChipVoltageMsg_t(LLCP_ChipVoltageMsg_t* msg) {
   msg->message_id = LLCP_CHIP_VOLTAGE_MSG_ID;
 
   init_LLCP_ChipVoltage_t(&msg->payload);
+}
+//}
+
+/* LLCP_FwVerMsg_t //{ */
+
+/* LLCP_FwVer_t //{ */
+
+void hton_LLCP_FwVer_t(LLCP_FwVer_t* data) {
+
+  data->CpuFwVer = llcp_hton32(data->CpuFwVer);
+  data->FpgaFwVer = llcp_hton32(data->FpgaFwVer);
+}
+
+void ntoh_LLCP_FwVer_t(LLCP_FwVer_t* data) {
+
+  data->CpuFwVer = llcp_ntoh32(data->CpuFwVer);
+  data->FpgaFwVer = llcp_ntoh32(data->FpgaFwVer);
+}
+
+void init_LLCP_FwVer_t(LLCP_FwVer_t* data) {
+
+  data->CpuFwVer = 0;
+  data->FpgaFwVer = 0;
+}
+
+//}
+
+void hton_LLCP_FwVerMsg_t(LLCP_FwVerMsg_t* msg) {
+
+  hton_LLCP_FwVer_t(&msg->payload);
+}
+
+void ntoh_LLCP_FwVerMsg_t(LLCP_FwVerMsg_t* msg) {
+
+  ntoh_LLCP_FwVer_t(&msg->payload);
+}
+
+void init_LLCP_FwVerMsg_t(LLCP_FwVerMsg_t* msg) {
+
+  msg->message_id = LLCP_CPU_FW_VER_MSG_ID;
+
+  init_LLCP_FwVer_t(&msg->payload);
 }
 
 //}
@@ -702,6 +744,25 @@ void ntoh_LLCP_GetChipVoltageReqMsg_t(LLCP_GetChipVoltageReqMsg_t* msg) {
 void init_LLCP_GetChipVoltageReqMsg_t(LLCP_GetChipVoltageReqMsg_t* msg) {
 
   msg->message_id = LLCP_GET_CHIP_VOLTAGE_REQ_MSG_ID;
+}
+
+//}
+
+/* LLCP_GetFwVerReqMsg_t //{ */
+
+void hton_LLCP_GetFwVerReqMsg_t(LLCP_GetFwVerReqMsg_t* msg) {
+
+  UNUSED(msg);
+}
+
+void ntoh_LLCP_GetFwVerReqMsg_t(LLCP_GetFwVerReqMsg_t* msg) {
+
+  UNUSED(msg);
+}
+
+void init_LLCP_GetFwVerReqMsg_t(LLCP_GetFwVerReqMsg_t* msg) {
+
+  msg->message_id = LLCP_GET_CPU_FW_VER_REQ_MSG_ID;
 }
 
 //}
