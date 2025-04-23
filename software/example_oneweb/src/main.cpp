@@ -627,7 +627,7 @@ void measurementA2(int pixel_mode, uint16_t acquisition_time_ms, int configurati
   // | ------------------- measure temperatur ------------------- |
 
   {
-    printf("[A1] getting temperature\n");
+    printf("[A2] getting temperature\n");
 
     getTemperature();
 
