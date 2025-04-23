@@ -19,6 +19,7 @@ include_directories(
   include
   ${CMAKE_CURRENT_SOURCE_DIR}/../llcp/include
   ${CMAKE_CURRENT_SOURCE_DIR}/../mui/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../serial_port
 )
 
 add_executable(example_oneweb

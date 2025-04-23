@@ -6,4 +6,4 @@ MY_PATH=`( cd "$MY_PATH" && pwd )`
 
 cd $MY_PATH
 
-./build/example_oneweb /tmp/ttyS1 921600 1 `pwd`/received_data/data.txt
+./build/example_oneweb /tmp/ttyS1 921600 1 `pwd`/data.txt

@@ -1,1 +1,0 @@
-../../../llcp/include/llcp_endian.h
