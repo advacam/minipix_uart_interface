@@ -17,20 +17,20 @@ add_definitions(-g)
 
 include_directories(
   include
-  include/llcp
-  include/mui
+  ${CMAKE_CURRENT_SOURCE_DIR}/../llcp/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../mui/include
 )
 
 add_executable(example_oneweb
   src/main.cpp
 
-  src/serial_port.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/../serial_port/serial_port.cpp
 
-  src/mui/mui.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../mui/src/mui.c
 
-  src/llcp/llcp.c
-  src/llcp/llcp_endian.c
-  src/llcp/llcp_minipix_messages.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../llcp/src/llcp.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../llcp/src/llcp_endian.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../llcp/src/llcp_minipix_messages.c
 )
 
 target_link_libraries(example_oneweb
