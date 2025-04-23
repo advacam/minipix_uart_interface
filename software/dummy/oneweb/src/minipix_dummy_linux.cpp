@@ -109,37 +109,54 @@ void MinipixDummyLinux::update_linux(void) {
 
 //}
 
-/* loadImage() //{ */
+/* generateImage() //{ */
 
-std::vector<std::vector<double>> MinipixDummyLinux::loadImage(const std::string& file_path) {
+std::vector<std::vector<double>> MinipixDummyLinux::generateImage() {
 
-  printf("loading image from '%s'\n", file_path.c_str());
+  std::vector<std::vector<double>> image;
 
-  std::ifstream data(file_path);
+  float n_pxls_per_ms = 0.5;
+  int   n_pxls_const  = 100;
 
-  std::vector<std::vector<double>> parsed_csv;
+  int total_pixels = n_pxls_const + int(n_pxls_per_ms * float(acquisition_time_));
 
-  if (!data.good()) {
-    printf("could not load the file %s\n", file_path.c_str());
-    return parsed_csv;
+  if (total_pixels > 10000) {
+    total_pixels = 10000;
   }
 
-  std::string line;
+  printf("generating image with %d in it\n", total_pixels);
 
-  while (std::getline(data, line)) {
+  // | ------------------ create an empty image ----------------- |
+  for (int i = 0; i < 256; i++) {
 
-    std::stringstream   lineStream(line);
-    std::string         cell;
-    std::vector<double> parsedRow;
+    std::vector<double> row;
 
-    while (std::getline(lineStream, cell, ' ')) {
-      parsedRow.push_back(stod(cell));
+    for (int j = 0; j < 256; j++) {
+
+      row.push_back(0);
     }
 
-    parsed_csv.push_back(parsedRow);
+    image.push_back(row);
   }
 
-  return parsed_csv;
+  // | ------------- populate the image with pixels ------------- |
+
+  int pixel_hits = 0;
+
+  // I know this is the worst way how to do this... but I needed it quick ;-)
+  while (pixel_hits < total_pixels) {
+
+    int x = randi(0, 255);
+    int y = randi(0, 255);
+
+    if (image[x][y] <= 0) {
+
+      image[x][y] = randd(5, 100.0);
+      pixel_hits++;
+    }
+  }
+
+  return image;
 }
 
 //}
@@ -221,7 +238,7 @@ void MinipixDummyLinux::getFrameData(void) {
   ss << data_folder << "/" << image_id << "_fullres.txt";
   std::string filename = ss.str();
 
-  std::vector<std::vector<double>> image = loadImage(filename);
+  std::vector<std::vector<double>> image = generateImage();
 
   // initialize the packet we will be sending
   LLCP_FrameDataMsg_t image_data;
@@ -278,7 +295,7 @@ void MinipixDummyLinux::getFrameData(void) {
           case LLCP_TPX3_PXL_MODE_MPX_ITOT: {
 
             LLCP_PixelDataMpxiToT_t* pixel = (LLCP_PixelDataMpxiToT_t*)&image_data.payload.pixel_data[n_pixels_counter];
-            pixel->event_counter           = uint8_t(pixel_value);
+            pixel->mpx                     = uint8_t(pixel_value);
             pixel->itot                    = 500 - uint8_t(pixel_value) >= 0 ? 500 - uint8_t(pixel_value) : 0;
 
             pixel_mode = TPX3_MPX_ITOT;
