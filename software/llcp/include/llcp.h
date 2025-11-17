@@ -38,7 +38,7 @@ extern "C" {
 
 /* automatically-defined configs //{ */
 
-// definition of the byte lenghts of the various section of the comm message
+// definition of the byte lengths of the various section of the comm message
 #define INIT_LEN 1
 #define PAYLOAD_SIZE_LEN 1
 #define CHECKSUM_LEN 1

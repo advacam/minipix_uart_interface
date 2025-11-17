@@ -92,7 +92,7 @@ config number:\t\t'%d'\n",
   // power up cycling
   int cycle_count = 10;
   int cycle_current = 0;
-  double wait_for_power_up = 5.; // wait in seconds to get reposnse about error or not error of power up
+  double wait_for_power_up = 5.; // wait in seconds to get response about error or not error of power up
   do
   {
     cycle_current++;

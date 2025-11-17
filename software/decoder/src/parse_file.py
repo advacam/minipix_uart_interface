@@ -99,8 +99,12 @@ def parseStream(infile):
     for row in csv_reader:
         # Check if the separator is in the row row = [timestamp, data]
 
-        row_timestamp = row[0]
-        row_data = row[1]
+        if len(row) >= 2:
+            row_timestamp = row[0]
+            row_data = row[1]
+        else:
+            row_timestamp = ""
+            row_data = row[0]
 
         if row_timestamp == "TIMESTAMP":
             continue
@@ -120,11 +124,14 @@ def parseStream(infile):
             data = ""  # Reset data for the next string
             timestamp = None
 
-        else:
+        elif len(row) >= 2:
             # Save the data in this row
             if timestamp == None:
                 timestamp = row_timestamp
             data += row_data
+        else:
+            data_list.append(row[0])
+            data = ""  # Reset data for the next string
 
     data_out = []
 
@@ -139,8 +146,6 @@ def parseStream(infile):
         idx = 0
 
         while idx < len(byte_stream):
-
-            # print("idx: {} < {}".format(idx, len(byte_stream)))
 
             if byte_stream[idx] == LLCP_STATUS_MSG_ID:
                 print("status")
