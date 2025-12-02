@@ -18,7 +18,9 @@ MUI_Handler_t mui_handler_;
 
 
 bool              ack_ = true;
-uint16_t          save_max_pixels_ = 0;
+bool              power_up_failed_ = false;
+bool              measuring_frame_ = false;
+uint16_t          save_max_pixels_ = 10000;
 uint16_t          number_of_pixels_saved_ = 0;
 uint16_t          number_of_pixels_not_saved_ = 0;
 
@@ -76,6 +78,16 @@ void saveFrameDataToFile(const LLCP_FrameData_t *data) {
     fflush(measured_data_file_);
 }
 
+// --------------------------------------------------------------
+// |          method which encapsulate the MUI methods          |
+// --------------------------------------------------------------
+
+void measureFrame(int acquisition_time_ms, int pixel_mode) {
+
+    measuring_frame_ = true;
+
+    mui_measureFrame(&mui_handler_, acquisition_time_ms, pixel_mode);
+}
 
 // --------------------------------------------------------------
 // |                    callbacks for the MUI                   |
@@ -84,7 +96,7 @@ void saveFrameDataToFile(const LLCP_FrameData_t *data) {
 
 void mui_linux_processAck(const LLCP_Ack_t *data) {
 
-    printf("got ack: %d", data->success);
+    printf("got ack: %d\n", data->success);
     ack_ = true;
 }
 
@@ -99,6 +111,157 @@ void mui_linux_processChipVoltage(const LLCP_ChipVoltage_t *data) {
     printf("measured voltage %u mV\n", data->chip_voltage);
 }
 
+
+void mui_linux_processMinipixError([[maybe_unused]] const LLCP_MinipixError_t *data) {
+
+    LLCP_MinipixErrorMsg_t* msg = (LLCP_MinipixErrorMsg_t*)data;
+    ntoh_LLCP_MinipixErrorMsg_t(msg);
+    LLCP_MinipixError_t* error = (LLCP_MinipixError_t*)&msg->payload;
+
+    switch (error->error_id) {
+
+        case LLCP_MINIPIX_ERROR_MEASUREMENT_FAILED: {
+
+            printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_MEASUREMENT_FAILED]);
+
+            // measuring_frame_ = false;
+
+            break;
+        }
+
+        case LLCP_MINIPIX_ERROR_POWERUP_FAILED: {
+
+            power_up_failed_ = true;
+            printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_FAILED]);
+
+            break;
+        }
+
+        case LLCP_MINIPIX_ERROR_POWERUP_TPX3_RESET_SYNC: {
+
+            power_up_failed_ = true;
+            printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_RESET_SYNC]);
+
+            break;
+        }
+
+        case LLCP_MINIPIX_ERROR_POWERUP_TPX3_RESET_RECVDATA: {
+
+            power_up_failed_ = true;
+            printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_RESET_RECVDATA]);
+
+            break;
+        }
+
+        case LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_RESETS: {
+
+            power_up_failed_ = true;
+            printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_RESETS]);
+
+            break;
+        }
+
+        case LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_CHIPID: {
+
+            power_up_failed_ = true;
+            printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_CHIPID]);
+
+            break;
+        }
+
+        case LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_DACS: {
+
+            power_up_failed_ = true;
+            printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_DACS]);
+
+            break;
+        }
+
+        case LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_PIXCFG: {
+
+            power_up_failed_ = true;
+            printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_PIXCFG]);
+
+            break;
+        }
+
+        case LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_MATRIX: {
+
+            power_up_failed_ = true;
+            printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_MATRIX]);
+
+            break;
+        }
+
+        case LLCP_MINIPIX_ERROR_INVALID_PRESET: {
+
+            printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_INVALID_PRESET]);
+
+            break;
+        }
+
+        default: {
+            printf("Error: received unhandled error message, id %d\n", error->error_id);
+        }
+    }
+}
+
+void mui_linux_processMeasurementFinished() {
+
+    printf("measurement finished - ask for data \n");
+
+    LLCP_GetFrameDataReqMsg_t msg;
+    init_LLCP_GetFrameDataReqMsg_t(&msg);
+
+    // convert to network endian
+    // hton_LLCP_GetFrameDataReqMsg_t(&msg);
+
+    uint16_t n_bytes = llcp_prepareMessage((uint8_t *)&msg, sizeof(msg), tx_buffer);
+
+    serial_port_minipix_.sendCharArray(tx_buffer, n_bytes);
+}
+
+void mui_linux_processFrameData(const LLCP_FrameData_t *data) {
+
+    printf("getting data -  pixel count = %u \n", data->n_pixels);
+
+    pixel_count_ += data->n_pixels;
+
+    if (number_of_pixels_saved_ + data->n_pixels < save_max_pixels_) {
+
+        saveFrameDataToFile(data);
+        number_of_pixels_saved_ += data->n_pixels;
+    } else {
+        number_of_pixels_not_saved_ += data->n_pixels;
+    }
+
+    // send ack back
+    {
+        printf("send ack for the data\n");
+
+        LLCP_AckMsg_t msg;
+        init_LLCP_AckMsg_t(&msg);
+
+        msg.payload.success = 1;
+
+        // // convert to network endian
+        // hton_LLCP_AckMsg_t(&msg);
+
+        uint16_t n_bytes = llcp_prepareMessage((uint8_t *)&msg, sizeof(msg), tx_buffer);
+
+        serial_port_minipix_.sendCharArray(tx_buffer, n_bytes);
+    }
+}
+
+
+void mui_linux_processFrameDataTerminator([[maybe_unused]] const LLCP_FrameDataTerminator_t *data) {
+
+    printf("data terminator\n");
+    printf("Received frame with %d pixels\n", number_of_pixels_saved_ + number_of_pixels_not_saved_);
+    printf("Saved only %d of them\n", number_of_pixels_saved_);
+
+    measuring_frame_ = false;
+}
 
 // --------------------------------------------------------------
 // |                     methods for the MUI                    |
@@ -166,13 +329,13 @@ int main(int argc, char *argv[]) {
     // supply callback fuctions
     // mui_handler_.fcns.ledSetHW                        = &mui_linux_ledSetHW;
     // mui_handler_.fcns.sleepHW                         = &mui_linux_sleepHW;
-    // mui_handler_.fcns.processFrameData                = &mui_linux_processFrameData;
-    // mui_handler_.fcns.processFrameDataTerminator      = &mui_linux_processFrameDataTerminator;
+    mui_handler_.fcns.processFrameData                = &mui_linux_processFrameData;
+    mui_handler_.fcns.processFrameDataTerminator      = &mui_linux_processFrameDataTerminator;
+    mui_handler_.fcns.processFrameMeasurementFinished = &mui_linux_processMeasurementFinished;
     // mui_handler_.fcns.processStatus                   = &mui_linux_processStatus;
     mui_handler_.fcns.processTemperature              = &mui_linux_processTemperature;
     mui_handler_.fcns.processAck                      = &mui_linux_processAck;
-    // mui_handler_.fcns.processMinipixError             = &mui_linux_processMinipixError;
-    // mui_handler_.fcns.processFrameMeasurementFinished = &mui_linux_processMeasurementFinished;
+    mui_handler_.fcns.processMinipixError             = &mui_linux_processMinipixError;
     mui_handler_.fcns.processChipVoltage              = &mui_linux_processChipVoltage;
     mui_handler_.fcns.sendString                      = &mui_linux_sendString;
 
@@ -187,38 +350,40 @@ int main(int argc, char *argv[]) {
     }
 
 
+
+    printf("power on the device\n");
+    serial_port_minipix_.activate(true);
+    mui_pwr(&mui_handler_, 1);  
+    rc = read_response();
+    printf("rc = %d\n", rc);
+    serial_port_minipix_.activate(false);
+    printf("power on the device finished\n");
+
+
     printf("measure temperature\n");
     serial_port_minipix_.activate(true);
-    
     mui_getTemperature(&mui_handler_);
     rc = read_response();
-
-    mui_getTemperature(&mui_handler_);
-    rc = read_response();
-
-    mui_getTemperature(&mui_handler_);
-    rc = read_response();    
-
     serial_port_minipix_.activate(false);
     printf("rc = %d\n", rc);
     printf("finished measure temperature\n");
 
+    printf("measure frame\n");
+    serial_port_minipix_.activate(true);
+    int acq_time_ms = 100;
+    measureFrame(acq_time_ms, 0);
+    usleep(acq_time_ms*1000*2);
+    while(measuring_frame_)
+    {
+        usleep(10000);
+        rc = read_response();    
+    }
+    serial_port_minipix_.activate(false);
+    printf("rc = %d\n", rc);
+    printf("finished measure frame\n");
 
-    // printf("measure chip voltage\n");
-    // serial_port_minipix_.activate(true);
-    // mui_getChipVoltage(&mui_handler_);
-    // rc = read_response();
-    // serial_port_minipix_.activate(false);
-    // printf("rc = %d\n", rc);
-    // printf("finished measure chip voltage\n");
 
-    // printf("power on the device\n");
-    // serial_port_minipix_.activate(true);
-    // mui_pwr(&mui_handler_, 1);  
-    // rc = read_response();
-    // printf("rc = %d\n", rc);
-    // serial_port_minipix_.activate(false);
-    // printf("power on the device finished\n");
+
 
 
 

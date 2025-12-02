@@ -131,9 +131,6 @@ bool SpiPort::sendCharArray(uint8_t* buffer, int size)
     size_t tx_size = size + CRC_SIZE;
     uint8_t* tx_buffer = (uint8_t *)malloc(tx_size);
     prepare_tx_buffer(tx_buffer, buffer, size);
-    print_hex(" --- buf to device: ", buffer, size);
-    print_hex(" --- msg to device: ", tx_buffer, tx_size);
-
 
     uint8_t* dummy_rx = (uint8_t *)calloc(tx_size, 1);  
 
@@ -165,29 +162,31 @@ int SpiPort::readSerial(uint8_t* rx_buffer, int buf_max_size)
     for (int i = 0; i < MAX_READ_ATTEMPTS; i++) {
         usleep(POLL_SLEEP);
         
+        poll_len = 0;
+
         // poll_len == 0 for the first message already received during cmd exchange
-        if (poll_len == 0 && (rc = exchange(dummy_tx_poll, STATUS_POLL_SIZE, 
+        if ((rc = exchange(dummy_tx_poll, STATUS_POLL_SIZE, 
                                             poll_buffer, &poll_len)) < 0) 
         {
             fprintf(stderr, "Failed to poll device\n");
+            // todo - do something here
         }
-
-        print_hex(" --- status poll: ", poll_buffer, poll_len);
         
+        print_hex(" --- poll bf: ", poll_buffer, poll_len);
+
         if (poll_len >= 2 && (((poll_buffer[0] & 0xF0) >> 4 == HEADER_READY) || 
                             ((poll_buffer[0] & 0x0F) == HEADER_READY) ||
                             (poll_len > 1 && (poll_buffer[1] & 0xF0) >> 4 == HEADER_READY))) 
         {
-            printf("Device ready (header: 0x%03X)\n", (poll_buffer[0] << 4) | ((poll_buffer[1] & 0xF0) >> 4));
+            printf("\nDevice ready (header: 0x%03X)\n", (poll_buffer[0] << 4) | ((poll_buffer[1] & 0xF0) >> 4));
             ready = 1;
             rx_expected_size = (int)(((poll_buffer[1] & 0x0F) << 8) | poll_buffer[2]);
             break;
         }
         else{
-            printf("Device not ready (header: 0x%03X)\n", (poll_buffer[0] << 4) | ((poll_buffer[1] & 0xF0) >> 4));
+            printf("Device not ready (header: 0x%03X) idx = %d\n", (poll_buffer[0] << 4) | ((poll_buffer[1] & 0xF0) >> 4), i);
+            fflush(stdout);
         }
-
-        poll_len = 0;
     }
     
     if (!ready || !rx_expected_size) {

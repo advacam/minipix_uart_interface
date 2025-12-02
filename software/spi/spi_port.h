@@ -26,12 +26,12 @@
 #define CS_LOW          0x00
 #define PIN_DIRECTION   0x0B  // SK, DO, CS as outputs; DI as input
 
-#define CS_ASSERT       1   // ON
-#define CS_DEASSERT     0   // OFF - going to using for reset
+#define CS_ASSERT       0   // ON
+#define CS_DEASSERT     1   // OFF - going to using for reset
 
 // Protocol Configuration
 #define CRC_SIZE            2
-#define MAX_READ_ATTEMPTS   15
+#define MAX_READ_ATTEMPTS   100
 #define BASE_SLEEP          100000
 #define POLL_SLEEP          100000
 #define STATUS_POLL_SIZE    5
