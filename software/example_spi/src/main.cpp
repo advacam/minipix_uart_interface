@@ -1,8 +1,10 @@
 #include <chrono>
+#include <cstddef>
 #include <thread>
 
 #include <spi_port.h>
 #include <mui.h>
+#include <unistd.h>
 
 
 // This is better to be large for Linux, in case the serial driver
@@ -300,6 +302,66 @@ int read_response(void) {
     return 0;
 }
 
+
+// --------------------------------------------------------------
+// |                     bootloader functions                   |
+// --------------------------------------------------------------
+
+static const uint8_t HEADER = 0x62;
+static const size_t CHECKSUM_SIZE = 1;
+static const size_t HEADER_SIZE = 1;
+static const size_t CMD_SIZE = 1;
+static const size_t PAYLOAD_LENGTH_SIZE = 1;
+static const size_t CRC_SIZEE = 2;
+static const size_t MAX_BUFF_SIZE = 256;
+
+int sendNewFwSize(uint32_t fwSize) {
+
+    static const size_t PAYLOAD_SIZE = 3;
+    static const size_t DATA_SIZE = CMD_SIZE + PAYLOAD_SIZE;
+    static const size_t BUFF_SIZE = HEADER_SIZE + PAYLOAD_LENGTH_SIZE + DATA_SIZE + CHECKSUM_SIZE + CRC_SIZEE;
+
+    uint8_t buffer[MAX_BUFF_SIZE] = {HEADER};
+    buffer[1] = DATA_SIZE;
+    buffer[2] = 'g';
+    buffer[3] = (fwSize >> 16) & 0xFF; 
+    buffer[4] = (fwSize >> 8) & 0xFF; 
+    buffer[5] = fwSize & 0xFF; 
+    buffer[6] = 0xFE; // as check sum
+    printf("send fw size %d\n", fwSize);
+    serial_port_minipix_.activate(true);
+    serial_port_minipix_.sendCharArray(buffer, BUFF_SIZE - CRC_SIZEE);
+
+    int rc = read_response();
+    printf("rc = %d\n", rc);
+    serial_port_minipix_.activate(false);
+    printf("finished send fw size\n");
+
+    return rc;
+}
+
+int switchToApp() {
+
+    static const size_t PAYLOAD_SIZE = 0;
+    static const size_t DATA_SIZE = CMD_SIZE + PAYLOAD_SIZE;
+    static const size_t BUFF_SIZE = HEADER_SIZE + PAYLOAD_LENGTH_SIZE + DATA_SIZE + CHECKSUM_SIZE + CRC_SIZEE;
+
+    uint8_t buffer[MAX_BUFF_SIZE] = {HEADER};
+    buffer[1] = DATA_SIZE;
+    buffer[2] = 's';
+    buffer[3] = 0xFE; // as check sum
+    printf("send switch to app\n");
+    serial_port_minipix_.activate(true);
+    serial_port_minipix_.sendCharArray(buffer, BUFF_SIZE - CRC_SIZEE);
+
+    int rc = read_response();
+    printf("rc = %d\n", rc);
+    serial_port_minipix_.activate(false);
+    printf("finished send switch to app\n");
+
+    return rc;
+}
+
 // --------------------------------------------------------------
 // |                            MAIN                            |
 // --------------------------------------------------------------
@@ -349,43 +411,85 @@ int main(int argc, char *argv[]) {
         printf("Error: cannot open the data output file '%s' for writing!\n", data_path.c_str());
     }
 
+    // static const uint8_t HEADER = 0x62;
+    // static const size_t PAYLOAD_SIZE = 3;
+    // static const size_t CHECKSUM_SIZE = 1;
+    // static const size_t HEADER_SIZE = 1;
+    // static const size_t PAYLOAD_LENGTH_SIZE = 1;
+    // static const size_t CRC_SIZEE = 2;
+    // static const size_t BUFF_SIZE = HEADER_SIZE + PAYLOAD_LENGTH_SIZE + PAYLOAD_SIZE + CHECKSUM_SIZE + CRC_SIZEE;
+    // static const size_t SIZE_DATA = PAYLOAD_SIZE;
+
+    // uint8_t buffer[BUFF_SIZE] = {HEADER};
+    // buffer[1] = SIZE_DATA;
+    // // for (int i = 0; i < PAYLOAD_SIZE; i++) {
+    // //     buffer[i + HEADER_SIZE + PAYLOAD_LENGTH_SIZE] = i;
+    // // }
+    // buffer[2] = 'g';
+    // buffer[3] = 0x12; 
+    // buffer[4] = 0x23; 
+    // buffer[5] = 0x45; 
+    // // buffer[6] = 0x89; 
+    // // buffer[7] = 0xAB; 
+    // // buffer[8] = 0xCD; 
+    // // buffer[9] = 0xEF; 
+    // printf("test bootloader\n");
+    // serial_port_minipix_.activate(true);
+    // serial_port_minipix_.sendCharArray(buffer, BUFF_SIZE - CRC_SIZEE);
+
+    // rc = read_response();
+    // printf("rc = %d\n", rc);
+    // serial_port_minipix_.activate(false);
+    // printf("finished test bootloader\n");
+
+    // sendNewFwSize(0x123456);
+
+    switchToApp();
+
+    // static const size_t RECV_SIZE = 10;
+    // uint8_t  recv[RECV_SIZE];
+    // uint16_t bytes_read = serial_port_minipix_.readSerial(recv, RECV_SIZE);
+    // for(int i = 0; i < RECV_SIZE; i++) {
+    //     printf("%02X ", recv[i]);
+    // }
+    // serial_port_minipix_.activate(false);
+    // printf("rc = %d\n", rc);
+    // printf("finished test bootloader\n");
 
 
-    printf("power on the device\n");
-    serial_port_minipix_.activate(true);
-    mui_pwr(&mui_handler_, 1);  
-    rc = read_response();
-    printf("rc = %d\n", rc);
-    serial_port_minipix_.activate(false);
-    printf("power on the device finished\n");
+    // printf("power on the device\n");
+    // serial_port_minipix_.activate(true);
+    // mui_pwr(&mui_handler_, 1);  
+    // rc = read_response();
+    // printf("rc = %d\n", rc);
+    // serial_port_minipix_.activate(false);
+    // printf("power on the device finished\n");
 
 
-    printf("measure temperature\n");
-    serial_port_minipix_.activate(true);
-    mui_getTemperature(&mui_handler_);
-    rc = read_response();
-    serial_port_minipix_.activate(false);
-    printf("rc = %d\n", rc);
-    printf("finished measure temperature\n");
+    // // sleep(3);
 
-    printf("measure frame\n");
-    serial_port_minipix_.activate(true);
-    int acq_time_ms = 100;
-    measureFrame(acq_time_ms, 0);
-    usleep(acq_time_ms*1000*2);
-    while(measuring_frame_)
-    {
-        usleep(10000);
-        rc = read_response();    
-    }
-    serial_port_minipix_.activate(false);
-    printf("rc = %d\n", rc);
-    printf("finished measure frame\n");
+    // printf("measure frame\n");
+    // serial_port_minipix_.activate(true);
+    // int acq_time_ms = 1000;
+    // measureFrame(acq_time_ms, 0);
+    // usleep(acq_time_ms*1000);
+    // // while(measuring_frame_)
+    // // {
+    // //     usleep(10000);
+    // rc = read_response();    
+    // // }
+    // serial_port_minipix_.activate(false);
+    // printf("rc = %d\n", rc);
+    // printf("finished measure frame\n");
 
 
-
-
-
+    // printf("measure temperature\n");
+    // serial_port_minipix_.activate(true);
+    // mui_getTemperature(&mui_handler_);
+    // rc = read_response();
+    // serial_port_minipix_.activate(false);
+    // printf("rc = %d\n", rc);
+    // printf("finished measure temperature\n");
 
 
     return 0;

@@ -58,6 +58,7 @@ public:
     bool checkConnected();
 
     bool sendCharArray(uint8_t* buf, int size);
+    void prepare_tx_buffer(uint8_t *tx_buffer, const uint8_t *data, size_t data_len);
     int readSerial(uint8_t* arr, int arr_max_size);
 
     int activate(bool activ);
@@ -68,7 +69,6 @@ private:
     int write_check(uint8_t *buf, int size);
     int read_with_retry(uint8_t *rx_buffer, size_t read_len, size_t *rx_len);
     int exchange(const uint8_t *tx_buffer, size_t tx_len, uint8_t *rx_buffer, size_t *rx_len);
-    void prepare_tx_buffer(uint8_t *tx_buffer, const uint8_t *data, size_t data_len);
     int verify_crc(const uint8_t *data, size_t len);
 
 

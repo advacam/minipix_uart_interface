@@ -135,7 +135,7 @@ bool SpiPort::sendCharArray(uint8_t* buffer, int size)
     uint8_t* dummy_rx = (uint8_t *)calloc(tx_size, 1);  
 
     size_t rx_size_rec = 0;
-
+    print_hex("test", tx_buffer, tx_size);
     int rc = exchange(tx_buffer, tx_size, dummy_rx, &rx_size_rec);
 
     if(rc || rx_size_rec != tx_size){
