@@ -37,8 +37,9 @@
 #define STATUS_POLL_SIZE    5
 
 // Response headers
-#define HEADER_READY        0x0D
-#define HEADER_NOT_READY    0x0A
+#define HEADER_READY         0x0D
+#define HEADER_RECEIVE_READY 0x0C
+#define HEADER_NOT_READY     0x0A
 // #define HEADER_DATA         0x9A
 
 class SpiPort {
@@ -60,6 +61,7 @@ public:
     bool sendCharArray(uint8_t* buf, int size);
     void prepare_tx_buffer(uint8_t *tx_buffer, const uint8_t *data, size_t data_len);
     int readSerial(uint8_t* arr, int arr_max_size);
+    int readWriteSerial(uint8_t* rx_buffer, int buf_max_size);
 
     int activate(bool activ);
 

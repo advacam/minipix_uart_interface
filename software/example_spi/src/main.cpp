@@ -1,5 +1,6 @@
 #include <chrono>
 #include <cstddef>
+#include <cstdio>
 #include <thread>
 
 #include <spi_port.h>
@@ -340,6 +341,65 @@ int sendNewFwSize(uint32_t fwSize) {
     return rc;
 }
 
+int unlockFlash() {
+
+    static const size_t PAYLOAD_SIZE = 6;
+    static const size_t DATA_SIZE = CMD_SIZE + PAYLOAD_SIZE;
+    static const size_t BUFF_SIZE = HEADER_SIZE + PAYLOAD_LENGTH_SIZE + DATA_SIZE + CHECKSUM_SIZE + CRC_SIZEE;
+
+    uint8_t buffer[MAX_BUFF_SIZE] = {HEADER};
+    buffer[1] = DATA_SIZE;
+    buffer[2] = 'u';
+    buffer[3] = 0x01; 
+    buffer[4] = 0x02; 
+    buffer[5] = 0x03; 
+    buffer[6] = 0x04; 
+    buffer[7] = 0x05; 
+    buffer[8] = 0x06; 
+    buffer[9] = 0xFE; // as check sum
+    printf("send unlock flash\n");
+    serial_port_minipix_.activate(true);
+    serial_port_minipix_.sendCharArray(buffer, BUFF_SIZE - CRC_SIZEE);
+
+    int rc = read_response();
+    printf("rc = %d\n", rc);
+    serial_port_minipix_.activate(false);
+    printf("finished send unlock flash\n");
+
+    return rc;
+}
+
+int sendNewFwChunk(uint32_t offset) {
+
+    static const size_t PAYLOAD_SIZE = 3;
+    static const size_t DATA_SIZE = CMD_SIZE + PAYLOAD_SIZE;
+    static const size_t BUFF_SIZE = HEADER_SIZE + PAYLOAD_LENGTH_SIZE + DATA_SIZE + CHECKSUM_SIZE + CRC_SIZEE;
+
+    uint8_t buffer[MAX_BUFF_SIZE] = {HEADER};
+    buffer[1] = DATA_SIZE;
+    buffer[2] = 'f';
+    buffer[3] = (offset >> 16) & 0xFF; 
+    buffer[4] = (offset >> 8) & 0xFF; 
+    buffer[5] = offset & 0xFF; 
+    buffer[6] = 0xFE; // as check sum
+    printf("send fw chunk offset %d\n", offset);
+    serial_port_minipix_.activate(true);
+    serial_port_minipix_.sendCharArray(buffer, BUFF_SIZE - CRC_SIZEE);
+
+    static const size_t FW_CHUNK_SIZE = 512;
+    uint8_t  chunk[FW_CHUNK_SIZE];
+    for (size_t i = 0; i < FW_CHUNK_SIZE; i++) {
+        chunk[i] = i & 0xFF;
+    }
+    int rc = serial_port_minipix_.readWriteSerial(chunk, FW_CHUNK_SIZE);
+
+    printf("rc = %d\n", rc);
+    serial_port_minipix_.activate(false);
+    printf("finished send fw chunk offset %d\n", offset);
+
+    return rc;
+}
+
 int switchToApp() {
 
     static const size_t PAYLOAD_SIZE = 0;
@@ -444,7 +504,23 @@ int main(int argc, char *argv[]) {
 
     // sendNewFwSize(0x123456);
 
-    switchToApp();
+    // switchToApp();
+    unlockFlash();
+
+    auto before = std::chrono::system_clock::now();
+    uint32_t sent = 0;
+    static const size_t CHUNK_SIZE = 512;
+    for (uint32_t offset = 0; offset < CHUNK_SIZE * 10; offset += CHUNK_SIZE) {
+        sendNewFwChunk(offset);
+        printf("sent chunk offset %u\n", offset);
+        sent+= CHUNK_SIZE;
+    }
+    auto after = std::chrono::system_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(after - before);
+    printf("%ld ms\n", duration.count());
+    printf("%d\n", sent);
+
 
     // static const size_t RECV_SIZE = 10;
     // uint8_t  recv[RECV_SIZE];
