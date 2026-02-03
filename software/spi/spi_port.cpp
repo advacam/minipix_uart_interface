@@ -265,7 +265,7 @@ int SpiPort::readSerial(uint8_t* rx_buffer, int buf_max_size)
 int SpiPort::readWriteSerial(uint8_t* tx_buffer, int tx_size)
 {
     if(!ftdi)
-        return 0;;
+        return 0;
 
     int rc = 0;
     int ready = 0;
@@ -305,52 +305,15 @@ int SpiPort::readWriteSerial(uint8_t* tx_buffer, int tx_size)
     
     if (!ready) {
         fprintf(stderr, "Device did not become ready\n");
-        return 0;;
+        return 0;
     }
 
     // Read response message
     printf("Sending data (%zu bytes)...\n", tx_size);
     usleep(POLL_SLEEP);
 
-    // char dummy[10];
-    // printf("press to continue\n");
-    // scanf("%s", dummy);
-    // printf("resume\n");
-
     sendCharArray(tx_buffer, tx_size);
     fprintf(stderr, "Chunk sent, wait for ack\n");
-
-    // // Poll for ready status
-    // printf("Polling for device ready...\n");
-    // poll_len = 0;
-    // for (int i = 0; i < MAX_READ_ATTEMPTS; i++) {
-    //     usleep(POLL_SLEEP);
-        
-    //     poll_len = 0;
-
-    //     // poll_len == 0 for the first message already received during cmd exchange
-    //     if ((rc = exchange(dummy_tx_poll, STATUS_POLL_SIZE, 
-    //                                         poll_buffer, &poll_len)) < 0) 
-    //     {
-    //         fprintf(stderr, "Failed to poll device\n");
-    //         // todo - do something here
-    //     }
-        
-    //     print_hex(" --- poll bf: ", poll_buffer, poll_len);
-
-    //     if (poll_len >= 2 && (((poll_buffer[0] & 0xF0) >> 4 == HEADER_READY) || 
-    //                         ((poll_buffer[0] & 0x0F) == HEADER_READY) ||
-    //                         (poll_len > 1 && (poll_buffer[1] & 0xF0) >> 4 == HEADER_READY))) 
-    //     {
-    //         printf("\nDevice ready for receive (header: 0x%03X)\n", (poll_buffer[0] << 4) | ((poll_buffer[1] & 0xF0) >> 4));
-    //         ready = 1;
-    //         break;
-    //     }
-    //     else{
-    //         printf("Device not ready (header: 0x%03X) idx = %d\n", (poll_buffer[0] << 4) | ((poll_buffer[1] & 0xF0) >> 4), i);
-    //         fflush(stdout);
-    //     }
-    // }
 
     static const size_t RX_SIZE = 10;
     uint8_t  buffer[RX_SIZE];
@@ -358,12 +321,12 @@ int SpiPort::readWriteSerial(uint8_t* tx_buffer, int tx_size)
 
     return ready;
 
-    // validate CRC and remove CRC if success
-    // if(verify_crc(rx_buffer, rx_size)){
-    //     return 0;
-    // }else{
-    //    rx_size -= CRC_SIZE; 
-    // }
+    //validate CRC and remove CRC if success
+    if(verify_crc(buffer, RX_SIZE)){
+        return 0;
+    }else{
+       rx_size -= CRC_SIZE; 
+    }
 
     // Check for valid data header and given response
     // if (rx_buffer[0] == HEADER_DATA) {

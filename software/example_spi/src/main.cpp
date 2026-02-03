@@ -318,6 +318,11 @@ static const size_t MAX_BUFF_SIZE = 256;
 
 int sendNewFwSize(uint32_t fwSize) {
 
+    if (fwSize > 0xFFFFFF) {
+        printf("fw size too large %u\n", fwSize);
+        return -1;
+    }
+
     static const size_t PAYLOAD_SIZE = 3;
     static const size_t DATA_SIZE = CMD_SIZE + PAYLOAD_SIZE;
     static const size_t BUFF_SIZE = HEADER_SIZE + PAYLOAD_LENGTH_SIZE + DATA_SIZE + CHECKSUM_SIZE + CRC_SIZEE;
@@ -369,7 +374,7 @@ int unlockFlash() {
     return rc;
 }
 
-int sendNewFwChunk(uint32_t offset) {
+int sendNewFwChunk(uint32_t offset, uint8_t *chunk, size_t chunk_size) {
 
     static const size_t PAYLOAD_SIZE = 3;
     static const size_t DATA_SIZE = CMD_SIZE + PAYLOAD_SIZE;
@@ -382,21 +387,13 @@ int sendNewFwChunk(uint32_t offset) {
     buffer[4] = (offset >> 8) & 0xFF; 
     buffer[5] = offset & 0xFF; 
     buffer[6] = 0xFE; // as check sum
-    printf("send fw chunk offset %d\n", offset);
+    printf("send fw chunk offset 0x%x\n", offset);
     serial_port_minipix_.activate(true);
     serial_port_minipix_.sendCharArray(buffer, BUFF_SIZE - CRC_SIZEE);
-
-    static const size_t FW_CHUNK_SIZE = 512;
-    uint8_t  chunk[FW_CHUNK_SIZE];
-    for (size_t i = 0; i < FW_CHUNK_SIZE; i++) {
-        chunk[i] = i & 0xFF;
-    }
-    int rc = serial_port_minipix_.readWriteSerial(chunk, FW_CHUNK_SIZE);
-
+    int rc = serial_port_minipix_.readWriteSerial(chunk, chunk_size);
     printf("rc = %d\n", rc);
     serial_port_minipix_.activate(false);
     printf("finished send fw chunk offset %d\n", offset);
-
     return rc;
 }
 
@@ -420,6 +417,98 @@ int switchToApp() {
     printf("finished send switch to app\n");
 
     return rc;
+}
+
+int verifyNewFw() {
+
+    static const size_t PAYLOAD_SIZE = 0;
+    static const size_t DATA_SIZE = CMD_SIZE + PAYLOAD_SIZE;
+    static const size_t BUFF_SIZE = HEADER_SIZE + PAYLOAD_LENGTH_SIZE + DATA_SIZE + CHECKSUM_SIZE + CRC_SIZEE;
+
+    uint8_t buffer[MAX_BUFF_SIZE] = {HEADER};
+    buffer[1] = DATA_SIZE;
+    buffer[2] = 'c';
+    buffer[3] = 0xFE; // as check sum
+    printf("verify new fw\n");
+    serial_port_minipix_.activate(true);
+    serial_port_minipix_.sendCharArray(buffer, BUFF_SIZE - CRC_SIZEE);
+
+    static const size_t RESPONSE_LEN = 10;
+    uint8_t readBuffer[RESPONSE_LEN];
+    uint16_t bytes_read = serial_port_minipix_.readSerial(readBuffer, RESPONSE_LEN);
+    serial_port_minipix_.activate(false);
+    printf("verify new fw\n");
+
+    return 1;
+}
+
+void appendCrc32ToBuffer(uint8_t *tx_buffer, uint8_t *data, size_t data_size) {
+    // Copy original data
+    memcpy(tx_buffer, data, data_size);
+    
+    // Calculate and append CRC16
+    uint32_t crc = crc32(reinterpret_cast<uint32_t*>(data), data_size / 4);
+    tx_buffer[data_size + 3] = (crc >> 24) & 0xFF;      // High byte
+    tx_buffer[data_size + 2] = (crc >> 16) & 0xFF;  
+    tx_buffer[data_size + 1] = (crc >> 8) & 0xFF;   
+    tx_buffer[data_size ] = crc & 0xFF;          // Low byte
+}
+
+int flashNewFw(uint8_t *fw_data, size_t fw_size) {
+
+    static const size_t CHUNK_SIZE = 512;
+    static const size_t CRC_FW_SIZE = 4;
+
+    // add crc to the end of whole fw, added padding to be divisable by CRC_FW_SIZE
+    size_t padding = CRC_FW_SIZE - (fw_size % CRC_FW_SIZE);
+    size_t total_size = fw_size + padding + CRC_FW_SIZE;
+    uint8_t* tx_buffer = (uint8_t *)malloc(total_size);
+    appendCrc32ToBuffer(tx_buffer, fw_data, fw_size);
+    printf("size before %d\n", fw_size);
+    printf("total buffer size %d\n", total_size);
+
+    // send fw size and unlock flash
+    //eraseFlash();
+    sendNewFwSize(total_size);
+    unlockFlash();
+
+    auto before = std::chrono::system_clock::now();
+    uint32_t sent = 0;
+    uint32_t resendCntr = 0;
+    
+    uint8_t chunk[CHUNK_SIZE];
+    for (uint32_t offset = 0; offset < total_size; offset += CHUNK_SIZE) {
+
+        size_t chunk_size = (offset + CHUNK_SIZE > total_size) ? (total_size - offset) : CHUNK_SIZE;
+        memcpy(chunk, tx_buffer + offset, chunk_size);
+        auto rc = sendNewFwChunk(offset, chunk, chunk_size);
+        if (!rc)  {
+            printf("failed to send chunk offset 0x%x\n", offset);
+            printf("resending %u\n", offset);
+
+            resendCntr++;
+            if (resendCntr > 10) {
+                free(tx_buffer);
+                printf("fatal error offset 0x%x\n", offset);
+                return 0;
+            }
+            offset -= CHUNK_SIZE;
+            continue;
+        }
+        printf("sent chunk offset 0x%x\n", offset);
+        sent += chunk_size;
+    }
+
+    auto after = std::chrono::system_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(after - before);
+    printf("%ld ms\n", duration.count());
+    printf("%d\n", sent);
+    free(tx_buffer);
+
+    printf("FW sent succesfully size %d/%d\n", sent, total_size);
+    printf("Resent chunks: %d\n", resendCntr);
+    
+    return 1;
 }
 
 // --------------------------------------------------------------
@@ -471,55 +560,32 @@ int main(int argc, char *argv[]) {
         printf("Error: cannot open the data output file '%s' for writing!\n", data_path.c_str());
     }
 
-    // static const uint8_t HEADER = 0x62;
-    // static const size_t PAYLOAD_SIZE = 3;
-    // static const size_t CHECKSUM_SIZE = 1;
-    // static const size_t HEADER_SIZE = 1;
-    // static const size_t PAYLOAD_LENGTH_SIZE = 1;
-    // static const size_t CRC_SIZEE = 2;
-    // static const size_t BUFF_SIZE = HEADER_SIZE + PAYLOAD_LENGTH_SIZE + PAYLOAD_SIZE + CHECKSUM_SIZE + CRC_SIZEE;
-    // static const size_t SIZE_DATA = PAYLOAD_SIZE;
+    // | ------------------ test bootloader ------------------------ |
 
-    // uint8_t buffer[BUFF_SIZE] = {HEADER};
-    // buffer[1] = SIZE_DATA;
-    // // for (int i = 0; i < PAYLOAD_SIZE; i++) {
-    // //     buffer[i + HEADER_SIZE + PAYLOAD_LENGTH_SIZE] = i;
-    // // }
-    // buffer[2] = 'g';
-    // buffer[3] = 0x12; 
-    // buffer[4] = 0x23; 
-    // buffer[5] = 0x45; 
-    // // buffer[6] = 0x89; 
-    // // buffer[7] = 0xAB; 
-    // // buffer[8] = 0xCD; 
-    // // buffer[9] = 0xEF; 
-    // printf("test bootloader\n");
-    // serial_port_minipix_.activate(true);
-    // serial_port_minipix_.sendCharArray(buffer, BUFF_SIZE - CRC_SIZEE);
-
-    // rc = read_response();
-    // printf("rc = %d\n", rc);
-    // serial_port_minipix_.activate(false);
-    // printf("finished test bootloader\n");
-
-    // sendNewFwSize(0x123456);
-
-    // switchToApp();
-    unlockFlash();
-
-    auto before = std::chrono::system_clock::now();
-    uint32_t sent = 0;
-    static const size_t CHUNK_SIZE = 512;
-    for (uint32_t offset = 0; offset < CHUNK_SIZE * 10; offset += CHUNK_SIZE) {
-        sendNewFwChunk(offset);
-        printf("sent chunk offset %u\n", offset);
-        sent+= CHUNK_SIZE;
+    FILE* fw_file = fopen("/home/curdam/_PROJECTS/lunar_lander/minipix_uart_interface/software/example_spi/_build/minipix.bin", "rb");
+    if (!fw_file) {
+        printf("failed to open fw file\n");
+        // handle error
+        return 0;
     }
-    auto after = std::chrono::system_clock::now();
 
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(after - before);
-    printf("%ld ms\n", duration.count());
-    printf("%d\n", sent);
+    // Get file size
+    fseek(fw_file, 0, SEEK_END);
+    long fw_size = ftell(fw_file);
+    fseek(fw_file, 0, SEEK_SET);
+
+    // Allocate buffer and read
+    uint8_t* fw_buffer = (uint8_t*)malloc(fw_size);
+    size_t bytes_read = fread(fw_buffer, 1, fw_size, fw_file);
+
+    fclose(fw_file);
+
+    flashNewFw(fw_buffer, fw_size);
+
+    // sendNewFwSize(294364);
+    verifyNewFw();
+
+    // | ------------------ end test bootloader -------------------- |
 
 
     // static const size_t RECV_SIZE = 10;

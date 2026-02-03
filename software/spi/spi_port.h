@@ -33,7 +33,7 @@
 #define CRC_SIZE            2
 #define MAX_READ_ATTEMPTS   100
 #define BASE_SLEEP          100000
-#define POLL_SLEEP          100000
+#define POLL_SLEEP          100
 #define STATUS_POLL_SIZE    5
 
 // Response headers
