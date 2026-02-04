@@ -7,6 +7,9 @@
 #include <mui.h>
 #include <unistd.h>
 
+#include <cstdint>
+#include <algorithm>
+
 
 // This is better to be large for Linux, in case the serial driver
 // fills in more than one packet.
@@ -391,6 +394,7 @@ int sendNewFwChunk(uint32_t offset, uint8_t *chunk, size_t chunk_size) {
     serial_port_minipix_.activate(true);
     serial_port_minipix_.sendCharArray(buffer, BUFF_SIZE - CRC_SIZEE);
     int rc = serial_port_minipix_.readWriteSerial(chunk, chunk_size);
+    //TODO: handle return codes for writing the flash
     printf("rc = %d\n", rc);
     serial_port_minipix_.activate(false);
     printf("finished send fw chunk offset %d\n", offset);
@@ -437,7 +441,7 @@ int verifyNewFw() {
     uint8_t readBuffer[RESPONSE_LEN];
     uint16_t bytes_read = serial_port_minipix_.readSerial(readBuffer, RESPONSE_LEN);
     serial_port_minipix_.activate(false);
-    printf("verify new fw\n");
+    printf("end verify new fw\n");
 
     return 1;
 }
@@ -445,13 +449,23 @@ int verifyNewFw() {
 void appendCrc32ToBuffer(uint8_t *tx_buffer, uint8_t *data, size_t data_size) {
     // Copy original data
     memcpy(tx_buffer, data, data_size);
+
+    // Use aligned temporary buffer for CRC calculation if needed
+    size_t data_size_u32 = data_size / 4;
+    uint32_t temp_buffer[data_size_u32];
+    memcpy(temp_buffer, data, data_size);
+
+    printf("data: 0x%08x\n", temp_buffer[0]);
     
     // Calculate and append CRC16
-    uint32_t crc = crc32(reinterpret_cast<uint32_t*>(data), data_size / 4);
+    uint32_t crc = crc32(temp_buffer, data_size_u32);
+    printf("crc32: 0x%08x\n", crc);
+    printf("data_size: %x\n", data_size);
+
     tx_buffer[data_size + 3] = (crc >> 24) & 0xFF;      // High byte
     tx_buffer[data_size + 2] = (crc >> 16) & 0xFF;  
     tx_buffer[data_size + 1] = (crc >> 8) & 0xFF;   
-    tx_buffer[data_size ] = crc & 0xFF;          // Low byte
+    tx_buffer[data_size] = crc & 0xFF;                  // Low byte
 }
 
 int flashNewFw(uint8_t *fw_data, size_t fw_size) {
@@ -460,12 +474,22 @@ int flashNewFw(uint8_t *fw_data, size_t fw_size) {
     static const size_t CRC_FW_SIZE = 4;
 
     // add crc to the end of whole fw, added padding to be divisable by CRC_FW_SIZE
-    size_t padding = CRC_FW_SIZE - (fw_size % CRC_FW_SIZE);
+    size_t padding = (CRC_FW_SIZE - (fw_size % CRC_FW_SIZE)) % CRC_FW_SIZE;
     size_t total_size = fw_size + padding + CRC_FW_SIZE;
     uint8_t* tx_buffer = (uint8_t *)malloc(total_size);
     appendCrc32ToBuffer(tx_buffer, fw_data, fw_size);
     printf("size before %d\n", fw_size);
     printf("total buffer size %d\n", total_size);
+
+    // for (size_t i = 0; i < fw_size; i ++ ) {
+    //     printf("%02x", fw_data[i]);
+    // }
+    // printf("\n");
+
+    // for (size_t i = 0; i < total_size; i ++ ) {
+    //     printf("%02x", tx_buffer[i]);
+    // }
+    // printf("\n");
 
     // send fw size and unlock flash
     //eraseFlash();
@@ -475,16 +499,20 @@ int flashNewFw(uint8_t *fw_data, size_t fw_size) {
     auto before = std::chrono::system_clock::now();
     uint32_t sent = 0;
     uint32_t resendCntr = 0;
-    
     uint8_t chunk[CHUNK_SIZE];
-    for (uint32_t offset = 0; offset < total_size; offset += CHUNK_SIZE) {
+    uint32_t offset = 0;
 
+    while (offset < total_size) {
         size_t chunk_size = (offset + CHUNK_SIZE > total_size) ? (total_size - offset) : CHUNK_SIZE;
+        
+        // Always use full CHUNK_SIZE, pad with zeros if needed
+        memset(chunk, 0, CHUNK_SIZE);  // Zero the entire chunk first
         memcpy(chunk, tx_buffer + offset, chunk_size);
-        auto rc = sendNewFwChunk(offset, chunk, chunk_size);
+        
+        auto rc = sendNewFwChunk(offset, chunk, CHUNK_SIZE);  // Always send CHUNK_SIZE
         if (!rc)  {
             printf("failed to send chunk offset 0x%x\n", offset);
-            printf("resending %u\n", offset);
+            printf("resending offset: 0x%08x, attempt: %d, \n", offset, resendCntr);
 
             resendCntr++;
             if (resendCntr > 10) {
@@ -492,11 +520,13 @@ int flashNewFw(uint8_t *fw_data, size_t fw_size) {
                 printf("fatal error offset 0x%x\n", offset);
                 return 0;
             }
-            offset -= CHUNK_SIZE;
+            // Don't increment offset, retry the same chunk
             continue;
         }
         printf("sent chunk offset 0x%x\n", offset);
-        sent += chunk_size;
+        sent += chunk_size;  // Track actual data sent (not padding)
+        
+        offset += CHUNK_SIZE;  // Move to next chunk
     }
 
     auto after = std::chrono::system_clock::now();
@@ -504,6 +534,8 @@ int flashNewFw(uint8_t *fw_data, size_t fw_size) {
     printf("%ld ms\n", duration.count());
     printf("%d\n", sent);
     free(tx_buffer);
+
+    verifyNewFw();
 
     printf("FW sent succesfully size %d/%d\n", sent, total_size);
     printf("Resent chunks: %d\n", resendCntr);
@@ -583,7 +615,6 @@ int main(int argc, char *argv[]) {
     flashNewFw(fw_buffer, fw_size);
 
     // sendNewFwSize(294364);
-    verifyNewFw();
 
     // | ------------------ end test bootloader -------------------- |
 

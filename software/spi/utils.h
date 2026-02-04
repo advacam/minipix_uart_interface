@@ -12,10 +12,11 @@ inline uint32_t crc32(const uint32_t* data, size_t len) {
     uint32_t crc = 0xFFFFFFFF;
 
     // Process each byte in the data
-    for (size_t i = 0; i < len; i++) {
+    for (size_t k = 0; k < len; k++) {
         // Process each byte in the 32-bit word
         for (int i = 0; i < 4; ++i) {
-            uint8_t byte = (data[i] >> (24 - i * 8)) & 0xFF;
+              
+            uint8_t byte = (data[k] >> (24 - i * 8)) & 0xFF;
             crc ^= (static_cast<uint32_t>(byte) << 24);
 
             // Process each bit in the byte

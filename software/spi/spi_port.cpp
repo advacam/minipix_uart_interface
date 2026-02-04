@@ -269,7 +269,6 @@ int SpiPort::readWriteSerial(uint8_t* tx_buffer, int tx_size)
 
     int rc = 0;
     int ready = 0;
-    size_t rx_size = 0;
     
     // Poll for ready status
     printf("Polling for device ready...\n");
@@ -287,18 +286,18 @@ int SpiPort::readWriteSerial(uint8_t* tx_buffer, int tx_size)
             // todo - do something here
         }
         
-        print_hex(" --- poll bf: ", poll_buffer, poll_len);
+        //print_hex(" --- poll bf: ", poll_buffer, poll_len);
 
         if (poll_len >= 2 && (((poll_buffer[0] & 0xF0) >> 4 == HEADER_RECEIVE_READY) || 
                             ((poll_buffer[0] & 0x0F) == HEADER_RECEIVE_READY) ||
                             (poll_len > 1 && (poll_buffer[1] & 0xF0) >> 4 == HEADER_RECEIVE_READY))) 
         {
-            printf("\nDevice ready for receive (header: 0x%03X)\n", (poll_buffer[0] << 4) | ((poll_buffer[1] & 0xF0) >> 4));
+            //printf("\nDevice ready for receive (header: 0x%03X)\n", (poll_buffer[0] << 4) | ((poll_buffer[1] & 0xF0) >> 4));
             ready = 1;
             break;
         }
         else{
-            printf("Device not ready (header: 0x%03X) idx = %d\n", (poll_buffer[0] << 4) | ((poll_buffer[1] & 0xF0) >> 4), i);
+            //printf("Device not ready (header: 0x%03X) idx = %d\n", (poll_buffer[0] << 4) | ((poll_buffer[1] & 0xF0) >> 4), i);
             fflush(stdout);
         }
     }
@@ -309,7 +308,7 @@ int SpiPort::readWriteSerial(uint8_t* tx_buffer, int tx_size)
     }
 
     // Read response message
-    printf("Sending data (%zu bytes)...\n", tx_size);
+    printf("Sending data (%u bytes)...\n", tx_size);
     usleep(POLL_SLEEP);
 
     sendCharArray(tx_buffer, tx_size);
@@ -319,37 +318,26 @@ int SpiPort::readWriteSerial(uint8_t* tx_buffer, int tx_size)
     uint8_t  buffer[RX_SIZE];
     readSerial(buffer, RX_SIZE);
 
-    return ready;
-
     //validate CRC and remove CRC if success
     if(verify_crc(buffer, RX_SIZE)){
         return 0;
-    }else{
-       rx_size -= CRC_SIZE; 
     }
 
+    // TODO: response checking should be outside this function?
     // Check for valid data header and given response
-    // if (rx_buffer[0] == HEADER_DATA) {
-    //     printf("Got data header (0x%02X)\n", rx_buffer[0]);
+    if (buffer[0] == 0x62 && buffer[3] == 0xAB && buffer[4] == 0xCD) {
+        printf("Got response (0x%02X%02X%02X%02X)\n", buffer[3], buffer[4], buffer[5], buffer[6]);
         
-    //     if (rx_size > 1) {
-    //         memmove(rx_buffer, rx_buffer + 1, rx_size - 1);
-    //         rx_size--; 
-    //     } else {
-    //         rx_size = 0;
-    //     }
-        
-    // } else {
-    //     fprintf(stderr, "Invalid response - header: 0x%02X and size %zu\n", 
-    //             rx_size > 0 ? rx_buffer[0] : 0x00, rx_size);
-    //     return 0;
-    // }
-    
-    // print_hex("final response: ", rx_buffer, rx_size);
-    // print_bytes("final response: ", rx_buffer, rx_size);
-
-
-    return rx_size;
+        if (buffer[6] == 0) {
+            printf("ACK OK\n");
+            return 1; //OK
+        } else {
+            return 0; //ERROR
+        }
+    } else {
+        fprintf(stderr, "Did not get the response\n");
+        return 0;
+    }
 }
 
 
