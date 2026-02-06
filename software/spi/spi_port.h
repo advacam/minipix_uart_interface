@@ -33,7 +33,8 @@
 #define CRC_SIZE            2
 #define MAX_READ_ATTEMPTS   100
 #define BASE_SLEEP          100000
-#define POLL_SLEEP          100
+#define POLL_SLEEP_SLOW     100000 // for flash erasing operation 
+#define POLL_SLEEP          100    // for normal operation
 #define STATUS_POLL_SIZE    5
 
 // Response headers
@@ -60,7 +61,7 @@ public:
 
     bool sendCharArray(uint8_t* buf, int size);
     void prepare_tx_buffer(uint8_t *tx_buffer, const uint8_t *data, size_t data_len);
-    int readSerial(uint8_t* arr, int arr_max_size);
+    int readSerial(uint8_t* arr, int arr_max_size, size_t poll_sleep = POLL_SLEEP);
     int readWriteSerial(uint8_t* rx_buffer, int buf_max_size);
 
     int activate(bool activ);

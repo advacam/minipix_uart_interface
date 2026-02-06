@@ -306,6 +306,42 @@ int read_response(void) {
     return 0;
 }
 
+int validate_response(size_t poll_sleep = POLL_SLEEP) {
+
+    const uint8_t HEADER_BYTE = 0x62;
+    const uint8_t RESPONSE_MARKER_1 = 0xAB;
+    const uint8_t RESPONSE_MARKER_2 = 0xCD;
+    const uint8_t ACK_OK = 0x00;
+
+    static const size_t RESPONSE_LEN = 10;
+    uint8_t buffer[RESPONSE_LEN];
+    uint16_t bytes_read = serial_port_minipix_.readSerial(buffer, RESPONSE_LEN, poll_sleep);
+
+    if (bytes_read < 1) {
+        return 0;
+    }
+    
+    // Check for valid data header and response markers
+    if (buffer[0] == HEADER_BYTE && 
+        buffer[3] == RESPONSE_MARKER_1 && 
+        buffer[4] == RESPONSE_MARKER_2) {
+        
+        printf("Got response (0x%02X%02X%02X%02X)\n", 
+               buffer[3], buffer[4], buffer[5], buffer[6]);
+        
+        if (buffer[6] == ACK_OK) {
+            printf("ACK OK\n");
+            return 1;
+        } else {
+            printf("ACK ERR\n");
+            return 0; // Error code in buffer[6]
+        }
+    }
+    
+    fprintf(stderr, "Did not get the response\n");
+    return 0;
+}
+
 
 // --------------------------------------------------------------
 // |                     bootloader functions                   |
@@ -318,6 +354,8 @@ static const size_t CMD_SIZE = 1;
 static const size_t PAYLOAD_LENGTH_SIZE = 1;
 static const size_t CRC_SIZEE = 2;
 static const size_t MAX_BUFF_SIZE = 256;
+
+static const size_t TOP_SECTOR = 12;
 
 int sendNewFwSize(uint32_t fwSize) {
 
@@ -341,7 +379,8 @@ int sendNewFwSize(uint32_t fwSize) {
     serial_port_minipix_.activate(true);
     serial_port_minipix_.sendCharArray(buffer, BUFF_SIZE - CRC_SIZEE);
 
-    int rc = read_response();
+    int rc = validate_response();
+
     printf("rc = %d\n", rc);
     serial_port_minipix_.activate(false);
     printf("finished send fw size\n");
@@ -369,13 +408,110 @@ int unlockFlash() {
     serial_port_minipix_.activate(true);
     serial_port_minipix_.sendCharArray(buffer, BUFF_SIZE - CRC_SIZEE);
 
-    int rc = read_response();
+    int rc = validate_response();
+
     printf("rc = %d\n", rc);
     serial_port_minipix_.activate(false);
     printf("finished send unlock flash\n");
 
     return rc;
 }
+
+int eraseFlashSector(uint8_t sector) {
+
+    if (sector < 1 || sector >= TOP_SECTOR) {
+        return 0;
+    }
+
+    static const size_t PAYLOAD_SIZE = 1;
+    static const size_t DATA_SIZE = CMD_SIZE + PAYLOAD_SIZE;
+    static const size_t BUFF_SIZE = HEADER_SIZE + PAYLOAD_LENGTH_SIZE + DATA_SIZE + CHECKSUM_SIZE + CRC_SIZEE;
+
+    uint8_t buffer[MAX_BUFF_SIZE] = {HEADER};
+    buffer[1] = DATA_SIZE;
+    buffer[2] = 'e';
+    buffer[3] = sector;  
+    buffer[4] = 0xFE; // as check sum
+    printf("send erase flash sector\n");
+    serial_port_minipix_.activate(true);
+    serial_port_minipix_.sendCharArray(buffer, BUFF_SIZE - CRC_SIZEE);
+
+    int rc = validate_response(POLL_SLEEP_SLOW);
+
+    printf("rc = %d\n", rc);
+    serial_port_minipix_.activate(false);
+    printf("finished erasing flash sector\n");
+
+    return rc;
+}
+
+int eraseFlash() {
+
+    int rc = 0;
+
+    rc = unlockFlash();
+    if (!rc) {
+        return rc;
+    }
+
+    for (uint8_t i = 1; i < TOP_SECTOR; i ++) {
+        rc = eraseFlashSector(i); // poll sleep must be 100000
+        if (!rc) {
+            return rc;
+        }
+    }
+
+    return rc;
+}
+
+int eraseFlashArea(size_t size) {
+
+    static const size_t SECTOR_BASE = 1024; 
+    static const size_t SECTOR_SIZES[12] = { 32, 32, 32, 32, 128, 256, 256, 256, 256, 256, 256, 256};
+    uint8_t sector = 1;
+    size_t totalSectorsSize = 0;
+    size_t sectorsToErase = 0;
+    int rc = 0;
+
+    while (size > totalSectorsSize) { // erasedSectors size must be bigger than size to write
+        if (sector >= TOP_SECTOR) {
+            printf("Not enough memory, flash limit reached: %d bytes\n", totalSectorsSize);
+            return 1;
+        }
+
+        totalSectorsSize += SECTOR_SIZES[sector] * SECTOR_BASE; // helper to iterate
+        sector ++;
+    }
+    printf("TotalSectorsSize: %d / data size: %d\n", totalSectorsSize, size);
+
+    rc = unlockFlash();
+    if (!rc) {
+        return rc;
+    }
+
+    uint8_t i = 1;
+    uint8_t repeat = 0;
+    while (i < sector) {
+        rc = eraseFlashSector(i); // poll sleep must be 100000
+        if (!rc)  {
+            printf("failed to erase sector: %d\n", i);
+            printf("repeat to erase sector: %d, attempt: %d, \n", i, repeat);
+
+            repeat++;
+            if (repeat > 3) {
+                printf("fatal error sector: %d\n", i);
+                return 0;
+            }
+            // Don't increment, retry the same sector
+            continue;
+        }
+        i ++;
+    }
+
+    printf("Finished erasing flash area: %d/%d\n", totalSectorsSize, size);
+    return 1;
+}
+
 
 int sendNewFwChunk(uint32_t offset, uint8_t *chunk, size_t chunk_size) {
 
@@ -393,7 +529,7 @@ int sendNewFwChunk(uint32_t offset, uint8_t *chunk, size_t chunk_size) {
     printf("send fw chunk offset 0x%x\n", offset);
     serial_port_minipix_.activate(true);
     serial_port_minipix_.sendCharArray(buffer, BUFF_SIZE - CRC_SIZEE);
-    int rc = serial_port_minipix_.readWriteSerial(chunk, chunk_size);
+    int rc = serial_port_minipix_.readWriteSerial(chunk, chunk_size); // response is evaluated inside function
     //TODO: handle return codes for writing the flash
     printf("rc = %d\n", rc);
     serial_port_minipix_.activate(false);
@@ -437,13 +573,18 @@ int verifyNewFw() {
     serial_port_minipix_.activate(true);
     serial_port_minipix_.sendCharArray(buffer, BUFF_SIZE - CRC_SIZEE);
 
-    static const size_t RESPONSE_LEN = 10;
-    uint8_t readBuffer[RESPONSE_LEN];
-    uint16_t bytes_read = serial_port_minipix_.readSerial(readBuffer, RESPONSE_LEN);
+    auto rc = validate_response();
+
+    if (rc) {
+        printf("FW VERIFY OK\n");
+    } else {
+        printf("FW VERIFY ERROR\n");
+    }
+
     serial_port_minipix_.activate(false);
     printf("end verify new fw\n");
 
-    return 1;
+    return rc;
 }
 
 void appendCrc32ToBuffer(uint8_t *tx_buffer, uint8_t *data, size_t data_size) {
@@ -473,6 +614,8 @@ int flashNewFw(uint8_t *fw_data, size_t fw_size) {
     static const size_t CHUNK_SIZE = 512;
     static const size_t CRC_FW_SIZE = 4;
 
+    auto start = std::chrono::system_clock::now();
+
     // add crc to the end of whole fw, added padding to be divisable by CRC_FW_SIZE
     size_t padding = (CRC_FW_SIZE - (fw_size % CRC_FW_SIZE)) % CRC_FW_SIZE;
     size_t total_size = fw_size + padding + CRC_FW_SIZE;
@@ -481,20 +624,14 @@ int flashNewFw(uint8_t *fw_data, size_t fw_size) {
     printf("size before %d\n", fw_size);
     printf("total buffer size %d\n", total_size);
 
-    // for (size_t i = 0; i < fw_size; i ++ ) {
-    //     printf("%02x", fw_data[i]);
-    // }
-    // printf("\n");
-
-    // for (size_t i = 0; i < total_size; i ++ ) {
-    //     printf("%02x", tx_buffer[i]);
-    // }
-    // printf("\n");
-
     // send fw size and unlock flash
-    //eraseFlash();
-    sendNewFwSize(total_size);
-    unlockFlash();
+    int rc = 0;
+    rc = eraseFlashArea(total_size);
+    if (!rc) return rc;
+    rc = sendNewFwSize(total_size);
+    if (!rc) return rc;
+    rc = unlockFlash();
+    if (!rc) return rc;
 
     auto before = std::chrono::system_clock::now();
     uint32_t sent = 0;
@@ -535,8 +672,12 @@ int flashNewFw(uint8_t *fw_data, size_t fw_size) {
     printf("%d\n", sent);
     free(tx_buffer);
 
-    verifyNewFw();
+    if (!verifyNewFw()) {
+        return 0;
+    }
 
+    auto durationWhole = std::chrono::duration_cast<std::chrono::milliseconds>(after - start);
+    printf("%ld ms\n", durationWhole.count());
     printf("FW sent succesfully size %d/%d\n", sent, total_size);
     printf("Resent chunks: %d\n", resendCntr);
     
@@ -612,11 +753,8 @@ int main(int argc, char *argv[]) {
 
     fclose(fw_file);
 
-    flashNewFw(fw_buffer, fw_size);
+    return flashNewFw(fw_buffer, 20);
 
-    // sendNewFwSize(294364);
-
-    // | ------------------ end test bootloader -------------------- |
 
 
     // static const size_t RECV_SIZE = 10;

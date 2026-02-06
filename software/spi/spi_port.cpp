@@ -146,7 +146,7 @@ bool SpiPort::sendCharArray(uint8_t* buffer, int size)
     return true;
 }
 
-int SpiPort::readSerial(uint8_t* rx_buffer, int buf_max_size)
+int SpiPort::readSerial(uint8_t* rx_buffer, int buf_max_size, size_t poll_sleep)
 {
     if(!ftdi)
         return 0;;
@@ -160,7 +160,7 @@ int SpiPort::readSerial(uint8_t* rx_buffer, int buf_max_size)
     printf("Polling for device ready...\n");
     size_t poll_len = 0;
     for (int i = 0; i < MAX_READ_ATTEMPTS; i++) {
-        usleep(POLL_SLEEP);
+        usleep(poll_sleep);
         
         poll_len = 0;
 
@@ -202,7 +202,7 @@ int SpiPort::readSerial(uint8_t* rx_buffer, int buf_max_size)
 
     // Read response message
     printf("Reading response (%zu bytes expected)...\n", rx_expected_size);
-    usleep(POLL_SLEEP);
+    usleep(poll_sleep);
     
     uint8_t *dummy_tx_msg = (uint8_t *)calloc(rx_expected_size, 1);
 
