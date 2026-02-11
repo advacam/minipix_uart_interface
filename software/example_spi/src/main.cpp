@@ -587,26 +587,26 @@ int verifyNewFw() {
     return rc;
 }
 
-void appendCrc32ToBuffer(uint8_t *tx_buffer, uint8_t *data, size_t data_size) {
+void appendCrc32ToBuffer(uint8_t *tx_buffer, uint8_t *dataIn, size_t data_size) {
     // Copy original data
-    memcpy(tx_buffer, data, data_size);
+    memcpy(tx_buffer, dataIn, data_size);
 
     // Use aligned temporary buffer for CRC calculation if needed
     size_t data_size_u32 = data_size / 4;
     uint32_t temp_buffer[data_size_u32];
-    memcpy(temp_buffer, data, data_size);
+    memcpy(temp_buffer, dataIn, data_size);
 
     printf("data: 0x%08x\n", temp_buffer[0]);
     
     // Calculate and append CRC16
     uint32_t crc = crc32(temp_buffer, data_size_u32);
     printf("crc32: 0x%08x\n", crc);
-    printf("data_size: %x\n", data_size);
+    printf("data_size_u32: %x\n", data_size);
 
-    tx_buffer[data_size + 3] = (crc >> 24) & 0xFF;      // High byte
+    tx_buffer[data_size + 3] = (crc >> 24) & 0xFF; 
     tx_buffer[data_size + 2] = (crc >> 16) & 0xFF;  
     tx_buffer[data_size + 1] = (crc >> 8) & 0xFF;   
-    tx_buffer[data_size] = crc & 0xFF;                  // Low byte
+    tx_buffer[data_size] = crc & 0xFF;             
 }
 
 int flashNewFw(uint8_t *fw_data, size_t fw_size) {
@@ -620,9 +620,26 @@ int flashNewFw(uint8_t *fw_data, size_t fw_size) {
     size_t padding = (CRC_FW_SIZE - (fw_size % CRC_FW_SIZE)) % CRC_FW_SIZE;
     size_t total_size = fw_size + padding + CRC_FW_SIZE;
     uint8_t* tx_buffer = (uint8_t *)malloc(total_size);
-    appendCrc32ToBuffer(tx_buffer, fw_data, fw_size);
+    memset(tx_buffer, 0, total_size);
+    // for (size_t i = 0; i < fw_size + padding; i ++ ) {
+    //     printf("%02x", fw_data[i]);
+    // }
+    // printf("\n");
+
+    appendCrc32ToBuffer(tx_buffer, fw_data, fw_size + padding);
     printf("size before %d\n", fw_size);
+    printf("size padding %d\n", padding);
     printf("total buffer size %d\n", total_size);
+
+    // for (size_t i = 0; i < fw_size + padding; i ++ ) {
+    //     printf("%02x", fw_data[i]);
+    // }
+    // printf("\n");
+
+    // for (size_t i = 0; i < total_size; i ++ ) {
+    //     printf("%02x", tx_buffer[i]);
+    // }
+    // printf("\n");
 
     // send fw size and unlock flash
     int rc = 0;
@@ -684,6 +701,13 @@ int flashNewFw(uint8_t *fw_data, size_t fw_size) {
     return 1;
 }
 
+// Funkce pro naplnění bufferu náhodnými daty
+void fillRandomData(uint8_t* buffer, size_t length) {
+    for (size_t i = 0; i < length; i++) {
+        buffer[i] = rand() & 0xFF;
+    }
+}
+
 // --------------------------------------------------------------
 // |                            MAIN                            |
 // --------------------------------------------------------------
@@ -735,25 +759,86 @@ int main(int argc, char *argv[]) {
 
     // | ------------------ test bootloader ------------------------ |
 
-    FILE* fw_file = fopen("/home/curdam/_PROJECTS/lunar_lander/minipix_uart_interface/software/example_spi/_build/minipix.bin", "rb");
-    if (!fw_file) {
-        printf("failed to open fw file\n");
-        // handle error
-        return 0;
+    // FILE* fw_file = fopen("/home/curdam/_PROJECTS/lunar_lander/minipix_uart_interface/software/example_spi/_build/minipix.bin", "rb");
+    // if (!fw_file) {
+    //     printf("failed to open fw file\n");
+    //     // handle error
+    //     return 0;
+    // }
+
+    // // Get file size
+    // fseek(fw_file, 0, SEEK_END);
+    // long fw_size = ftell(fw_file);
+    // fseek(fw_file, 0, SEEK_SET);
+
+    // // Allocate buffer and read
+    // uint8_t* fw_buffer = (uint8_t*)malloc(fw_size);
+    // size_t bytes_read = fread(fw_buffer, 1, fw_size, fw_file);
+
+    // fclose(fw_file);
+
+    // return flashNewFw(fw_buffer, 11);
+
+    static const size_t TEST_CNT = 1000;
+    static const size_t BUFF_LEN = 500000;
+    uint8_t fw_buffer[BUFF_LEN];
+
+    // Initialize random number generator
+    srand(time(NULL));
+    
+    printf("Starting flashNewFw test with random data and lengths\n");
+    printf("=================================================\n\n");
+    
+    int successful_tests = 0;
+    int failed_tests = 0;
+    size_t test_lengths[TEST_CNT];
+    int test_results[TEST_CNT];
+    
+    for (int test = 0; test < TEST_CNT; test++) {
+        // Generate random length (from 1 to BUFF_LEN)
+        size_t random_length = (rand() % BUFF_LEN) + 1;
+        test_lengths[test] = random_length;
+        
+        // Fill buffer with random data
+        fillRandomData(fw_buffer, random_length);
+        
+        printf("Test %d: length = %zu bytes (%.2f MB)\n", 
+               test + 1, random_length, random_length / 1024.0 / 1024.0);
+        
+        // Call tested function
+        int result = flashNewFw(fw_buffer, random_length);
+        test_results[test] = result;
+
+        if (result == 1) {
+            successful_tests++;
+            printf("  -> Result: %d [OK]\n\n", result);
+        } else {
+            failed_tests++;
+            printf("  -> Result: %d [ERROR]\n\n", result);
+        }
+        
+        // Optional: short pause between tests
+        // delay_ms(100);
     }
-
-    // Get file size
-    fseek(fw_file, 0, SEEK_END);
-    long fw_size = ftell(fw_file);
-    fseek(fw_file, 0, SEEK_SET);
-
-    // Allocate buffer and read
-    uint8_t* fw_buffer = (uint8_t*)malloc(fw_size);
-    size_t bytes_read = fread(fw_buffer, 1, fw_size, fw_file);
-
-    fclose(fw_file);
-
-    return flashNewFw(fw_buffer, 20);
+    
+    printf("=================================================\n");
+    printf("Test completed!\n");
+    printf("Successful tests: %d/%zu\n", successful_tests, TEST_CNT);
+    printf("Failed tests: %d/%zu\n", failed_tests, TEST_CNT);
+    printf("Success rate: %.1f%%\n\n", (successful_tests / (float)TEST_CNT) * 100.0);
+    
+    printf("Detailed results:\n");
+    printf("-------------------------------------------------\n");
+    for (size_t i = 0; i < TEST_CNT; i++) {
+        printf("Test %2zu: %8zu bytes (%.2f MB) - %s\n", 
+               i + 1, 
+               test_lengths[i], 
+               test_lengths[i] / 1024.0 / 1024.0,
+               (test_results[i] == 1) ? "OK" : "ERROR");
+    }
+    printf("=================================================\n");
+    
+    return 0;
 
 
 
