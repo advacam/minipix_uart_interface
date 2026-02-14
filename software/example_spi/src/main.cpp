@@ -468,6 +468,7 @@ int eraseFlashArea(size_t size) {
 
     static const size_t SECTOR_BASE = 1024; 
     static const size_t SECTOR_SIZES[12] = { 32, 32, 32, 32, 128, 256, 256, 256, 256, 256, 256, 256};
+    static const size_t REPEAT = 10;
     uint8_t sector = 1;
     size_t totalSectorsSize = 0;
     size_t sectorsToErase = 0;
@@ -498,7 +499,7 @@ int eraseFlashArea(size_t size) {
             printf("repeat to erase sector: %d, attempt: %d, \n", i, repeat);
 
             repeat++;
-            if (repeat > 3) {
+            if (repeat > REPEAT) {
                 printf("fatal error sector: %d\n", i);
                 return 0;
             }
@@ -506,6 +507,7 @@ int eraseFlashArea(size_t size) {
             continue;
         }
         i ++;
+        repeat = 0;
     }
 
     printf("Finished erasing flash area: %d/%d\n", totalSectorsSize, size);
@@ -794,7 +796,7 @@ int main(int argc, char *argv[]) {
 
     // return flashNewFw(fw_buffer, 11);
 
-    static const size_t TEST_CNT = 1;
+    static const size_t TEST_CNT = 5;
     static const size_t BUFF_LEN = 1000000;
     uint8_t fw_buffer[BUFF_LEN];
 
