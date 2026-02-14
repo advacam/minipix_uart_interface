@@ -359,7 +359,7 @@ static const size_t TOP_SECTOR = 12;
 
 int sendNewFwSize(uint32_t fwSize) {
 
-    if (fwSize > 0xFFFFFF) {
+    if (fwSize > 0x178000) {
         printf("fw size too large %u\n", fwSize);
         return -1;
     }
@@ -779,8 +779,8 @@ int main(int argc, char *argv[]) {
 
     // return flashNewFw(fw_buffer, 11);
 
-    static const size_t TEST_CNT = 1000;
-    static const size_t BUFF_LEN = 500000;
+    static const size_t TEST_CNT = 10;
+    static const size_t BUFF_LEN = 1000000;
     uint8_t fw_buffer[BUFF_LEN];
 
     // Initialize random number generator
