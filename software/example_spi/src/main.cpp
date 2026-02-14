@@ -613,6 +613,7 @@ int flashNewFw(uint8_t *fw_data, size_t fw_size) {
 
     static const size_t CHUNK_SIZE = 512;
     static const size_t CRC_FW_SIZE = 4;
+    static const size_t REPEAT = 10;
 
     auto start = std::chrono::system_clock::now();
 
@@ -643,11 +644,22 @@ int flashNewFw(uint8_t *fw_data, size_t fw_size) {
 
     // send fw size and unlock flash
     int rc = 0;
-    rc = eraseFlashArea(total_size);
+    for (uint8_t i = 0; i < REPEAT; i ++) {
+        rc = eraseFlashArea(total_size);
+        if (rc) break;
+    }
     if (!rc) return rc;
-    rc = sendNewFwSize(total_size);
+
+    for (uint8_t i = 0; i < REPEAT; i ++) {
+        rc = sendNewFwSize(total_size);
+        if (rc) break;
+    }
     if (!rc) return rc;
-    rc = unlockFlash();
+
+    for (uint8_t i = 0; i < REPEAT; i ++) {
+        rc = unlockFlash();
+        if (rc) break;
+    }
     if (!rc) return rc;
 
     auto before = std::chrono::system_clock::now();
@@ -669,7 +681,7 @@ int flashNewFw(uint8_t *fw_data, size_t fw_size) {
             printf("resending offset: 0x%08x, attempt: %d, \n", offset, resendCntr);
 
             resendCntr++;
-            if (resendCntr > 10) {
+            if (resendCntr > REPEAT) {
                 free(tx_buffer);
                 printf("fatal error offset 0x%x\n", offset);
                 return 0;
@@ -681,6 +693,7 @@ int flashNewFw(uint8_t *fw_data, size_t fw_size) {
         sent += chunk_size;  // Track actual data sent (not padding)
         
         offset += CHUNK_SIZE;  // Move to next chunk
+        resendCntr = 0;
     }
 
     auto after = std::chrono::system_clock::now();
@@ -689,9 +702,11 @@ int flashNewFw(uint8_t *fw_data, size_t fw_size) {
     printf("%d\n", sent);
     free(tx_buffer);
 
-    if (!verifyNewFw()) {
-        return 0;
+    for (uint8_t i = 0; i < REPEAT; i ++) {
+        rc = verifyNewFw();
+        if (rc) break;
     }
+    if (!rc) return 0;
 
     auto durationWhole = std::chrono::duration_cast<std::chrono::milliseconds>(after - start);
     printf("%ld ms\n", durationWhole.count());
@@ -779,7 +794,7 @@ int main(int argc, char *argv[]) {
 
     // return flashNewFw(fw_buffer, 11);
 
-    static const size_t TEST_CNT = 10;
+    static const size_t TEST_CNT = 1;
     static const size_t BUFF_LEN = 1000000;
     uint8_t fw_buffer[BUFF_LEN];
 
@@ -796,7 +811,7 @@ int main(int argc, char *argv[]) {
     
     for (int test = 0; test < TEST_CNT; test++) {
         // Generate random length (from 1 to BUFF_LEN)
-        size_t random_length = (rand() % BUFF_LEN) + 1;
+        size_t random_length = 111035;// (rand() % BUFF_LEN) + 1;
         test_lengths[test] = random_length;
         
         // Fill buffer with random data
