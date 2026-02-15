@@ -774,101 +774,103 @@ int main(int argc, char *argv[]) {
         printf("Error: cannot open the data output file '%s' for writing!\n", data_path.c_str());
     }
 
+    // | ------------------ load FW ------------------------ |
+
+    FILE* fw_file = fopen("/home/curdam/_PROJECTS/lunar_lander/builds/G07-W0129/minipix_12150226.bin", "rb");
+    if (!fw_file) {
+        printf("failed to open fw file\n");
+        // handle error
+        return 0;
+    }
+
+    // Get file size
+    fseek(fw_file, 0, SEEK_END);
+    long fw_size = ftell(fw_file);
+    fseek(fw_file, 0, SEEK_SET);
+
+    // Allocate buffer and read
+    uint8_t* fw_buffer = (uint8_t*)malloc(fw_size);
+    size_t bytes_read = fread(fw_buffer, 1, fw_size, fw_file);
+
+    fclose(fw_file);
+
+    return flashNewFw(fw_buffer, fw_size);
+
+    // | ------------------ end load FW ------------------------ |
+
+
     // | ------------------ test bootloader ------------------------ |
 
-    // FILE* fw_file = fopen("/home/curdam/_PROJECTS/lunar_lander/minipix_uart_interface/software/example_spi/_build/minipix.bin", "rb");
-    // if (!fw_file) {
-    //     printf("failed to open fw file\n");
-    //     // handle error
-    //     return 0;
+    // static const size_t TEST_CNT = 10;
+    // static const size_t BUFF_LEN = 1000000;
+    // uint8_t fw_buffer[BUFF_LEN];
+
+    // // Initialize random number generator
+    // srand(time(NULL));
+    
+    // printf("Starting flashNewFw test with random data and lengths\n");
+    // printf("=================================================\n\n");
+    
+    // int successful_tests = 0;
+    // int failed_tests = 0;
+    // size_t test_lengths[TEST_CNT];
+    // int test_results[TEST_CNT];
+    
+    // for (int test = 0; test < TEST_CNT; test++) {
+    //     // Generate random length (from 1 to BUFF_LEN)
+    //     size_t random_length = (rand() % BUFF_LEN) + 1;
+    //     test_lengths[test] = random_length;
+        
+    //     // Fill buffer with random data
+    //     fillRandomData(fw_buffer, random_length);
+        
+    //     printf("Test %d: length = %zu bytes (%.2f MB)\n", 
+    //            test + 1, random_length, random_length / 1024.0 / 1024.0);
+        
+    //     // Call tested function
+    //     int result = flashNewFw(fw_buffer, random_length);
+    //     test_results[test] = result;
+
+    //     if (result == 1) {
+    //         successful_tests++;
+    //         printf("  -> Result: %d [OK]\n\n", result);
+    //     } else {
+    //         failed_tests++;
+    //         printf("  -> Result: %d [ERROR]\n\n", result);
+    //     }
+        
+    //     // Optional: short pause between tests
+    //     // delay_ms(100);
     // }
-
-    // // Get file size
-    // fseek(fw_file, 0, SEEK_END);
-    // long fw_size = ftell(fw_file);
-    // fseek(fw_file, 0, SEEK_SET);
-
-    // // Allocate buffer and read
-    // uint8_t* fw_buffer = (uint8_t*)malloc(fw_size);
-    // size_t bytes_read = fread(fw_buffer, 1, fw_size, fw_file);
-
-    // fclose(fw_file);
-
-    // return flashNewFw(fw_buffer, 11);
-
-    static const size_t TEST_CNT = 5;
-    static const size_t BUFF_LEN = 1000000;
-    uint8_t fw_buffer[BUFF_LEN];
-
-    // Initialize random number generator
-    srand(time(NULL));
     
-    printf("Starting flashNewFw test with random data and lengths\n");
-    printf("=================================================\n\n");
+    // printf("=================================================\n");
+    // printf("Test completed!\n");
+    // printf("Successful tests: %d/%zu\n", successful_tests, TEST_CNT);
+    // printf("Failed tests: %d/%zu\n", failed_tests, TEST_CNT);
+    // printf("Success rate: %.1f%%\n\n", (successful_tests / (float)TEST_CNT) * 100.0);
     
-    int successful_tests = 0;
-    int failed_tests = 0;
-    size_t test_lengths[TEST_CNT];
-    int test_results[TEST_CNT];
-    
-    for (int test = 0; test < TEST_CNT; test++) {
-        // Generate random length (from 1 to BUFF_LEN)
-        size_t random_length = 111035;// (rand() % BUFF_LEN) + 1;
-        test_lengths[test] = random_length;
-        
-        // Fill buffer with random data
-        fillRandomData(fw_buffer, random_length);
-        
-        printf("Test %d: length = %zu bytes (%.2f MB)\n", 
-               test + 1, random_length, random_length / 1024.0 / 1024.0);
-        
-        // Call tested function
-        int result = flashNewFw(fw_buffer, random_length);
-        test_results[test] = result;
-
-        if (result == 1) {
-            successful_tests++;
-            printf("  -> Result: %d [OK]\n\n", result);
-        } else {
-            failed_tests++;
-            printf("  -> Result: %d [ERROR]\n\n", result);
-        }
-        
-        // Optional: short pause between tests
-        // delay_ms(100);
-    }
-    
-    printf("=================================================\n");
-    printf("Test completed!\n");
-    printf("Successful tests: %d/%zu\n", successful_tests, TEST_CNT);
-    printf("Failed tests: %d/%zu\n", failed_tests, TEST_CNT);
-    printf("Success rate: %.1f%%\n\n", (successful_tests / (float)TEST_CNT) * 100.0);
-    
-    printf("Detailed results:\n");
-    printf("-------------------------------------------------\n");
-    for (size_t i = 0; i < TEST_CNT; i++) {
-        printf("Test %2zu: %8zu bytes (%.2f MB) - %s\n", 
-               i + 1, 
-               test_lengths[i], 
-               test_lengths[i] / 1024.0 / 1024.0,
-               (test_results[i] == 1) ? "OK" : "ERROR");
-    }
-    printf("=================================================\n");
-    
-    return 0;
-
-
-
-    // static const size_t RECV_SIZE = 10;
-    // uint8_t  recv[RECV_SIZE];
-    // uint16_t bytes_read = serial_port_minipix_.readSerial(recv, RECV_SIZE);
-    // for(int i = 0; i < RECV_SIZE; i++) {
-    //     printf("%02X ", recv[i]);
+    // printf("Detailed results:\n");
+    // printf("-------------------------------------------------\n");
+    // for (size_t i = 0; i < TEST_CNT; i++) {
+    //     printf("Test %2zu: %8zu bytes (%.2f MB) - %s\n", 
+    //            i + 1, 
+    //            test_lengths[i], 
+    //            test_lengths[i] / 1024.0 / 1024.0,
+    //            (test_results[i] == 1) ? "OK" : "ERROR");
     // }
-    // serial_port_minipix_.activate(false);
-    // printf("rc = %d\n", rc);
-    // printf("finished test bootloader\n");
+    // printf("=================================================\n");
+    
+    // return 0;
 
+    // | ------------------ end test bootloader ------------------------ |
+
+
+      
+    // | ------------------ usage of switch to app ------------------------ |
+
+    // //jsut call this..
+    // switchToApp();
+    // //then whatever command e.g. power on the device
 
     // printf("power on the device\n");
     // serial_port_minipix_.activate(true);
@@ -878,8 +880,11 @@ int main(int argc, char *argv[]) {
     // serial_port_minipix_.activate(false);
     // printf("power on the device finished\n");
 
+    // | ------------------ end usage of switch to app ------------------------ |
 
-    // // sleep(3);
+
+    // | ------------------ other just unused code ------------------------ |
+
 
     // printf("measure frame\n");
     // serial_port_minipix_.activate(true);
