@@ -287,6 +287,75 @@ int read_response(void) {
 }
 
 // --------------------------------------------------------------
+// |                     switch to app                          |
+// --------------------------------------------------------------
+
+static const uint8_t HEADER = 0x62;
+static const size_t CHECKSUM_SIZE = 1;
+static const size_t HEADER_SIZE = 1;
+static const size_t CMD_SIZE = 1;
+static const size_t PAYLOAD_LENGTH_SIZE = 1;
+static const size_t CRC_SIZEE = 2;
+static const size_t MAX_BUFF_SIZE = 256;
+
+int validate_response() {
+
+    const uint8_t RESPONSE_MARKER_1 = 0xAB;
+    const uint8_t RESPONSE_MARKER_2 = 0xCD;
+    const uint8_t ACK_OK = 0x00;
+
+    static const size_t RESPONSE_LEN = 10;
+    uint8_t buffer[RESPONSE_LEN];
+    uint16_t bytes_read = serial_port_minipix_.read_serial(buffer, RESPONSE_LEN);
+
+    if (bytes_read < 1) {
+        return 0;
+    }
+    
+    // Check for valid data header and response markers
+    if (buffer[0] == HEADER && 
+        buffer[3] == RESPONSE_MARKER_1 && 
+        buffer[4] == RESPONSE_MARKER_2) {
+        
+        // printf("Got response (0x%02X%02X%02X%02X)\n", 
+        //        buffer[3], buffer[4], buffer[5], buffer[6]);
+        
+        if (buffer[6] == ACK_OK) {
+            printf("ACK OK\n");
+            return 1;
+        } else {
+            printf("ACK ERR\n");
+            return 0; // Error code in buffer[6]
+        }
+    }
+    
+    fprintf(stderr, "Did not get the response\n");
+    return 0;
+}
+
+int switchToApp() {
+
+    static const size_t PAYLOAD_SIZE = 0;
+    static const size_t DATA_SIZE = CMD_SIZE + PAYLOAD_SIZE;
+    static const size_t BUFF_SIZE = HEADER_SIZE + PAYLOAD_LENGTH_SIZE + DATA_SIZE + CHECKSUM_SIZE + CRC_SIZEE;
+
+    uint8_t buffer[MAX_BUFF_SIZE] = {HEADER};
+    buffer[1] = DATA_SIZE;
+    buffer[2] = 's';
+    buffer[3] = 0xFE; // dummy as check sum
+    printf("send switch to app\n");
+    serial_port_minipix_.activate(true);
+    serial_port_minipix_.send_char_array(buffer, BUFF_SIZE - CRC_SIZEE);
+
+    int rc = validate_response();
+
+    serial_port_minipix_.activate(false);
+    printf("finished send switch to app\n");
+
+    return rc;
+}
+
+// --------------------------------------------------------------
 // |                            MAIN                            |
 // --------------------------------------------------------------
 
@@ -334,6 +403,8 @@ int main(int argc, char *argv[]) {
     if (!measured_data_file_) {
         printf("Error: cannot open the data output file '%s' for writing!\n", data_path.c_str());
     }
+
+    switchToApp();
 
     printf("power on the device\n");
     serial_port_minipix_.activate(true);
