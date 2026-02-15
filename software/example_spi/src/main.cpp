@@ -11,27 +11,22 @@
 
 #define TX_SERIAL_BUFFER_SIZE LLCP_RX_TX_BUFFER_SIZE
 
-SpiPort     serial_port_minipix_;
+SpiPort     serial_port_minipix_;  // communication port/SPI with device 
 uint8_t     tx_buffer[TX_SERIAL_BUFFER_SIZE];
 
-MUI_Handler_t mui_handler_;
+MUI_Handler_t mui_handler_; // communication protocol handler (callbacks for device responses, reading msgs etc) 
 
 
 bool              ack_ = true;
 bool              power_up_failed_ = false;
 bool              measuring_frame_ = false;
+bool              receiving_frame_ = false;
 uint16_t          save_max_pixels_ = 10000;
 uint16_t          number_of_pixels_saved_ = 0;
 uint16_t          number_of_pixels_not_saved_ = 0;
-
 uint16_t          pixel_count_     = 0;
 
-int16_t           temperature_ = 0;
-
 FILE* measured_data_file_ = nullptr;
-
-
-
 
 // --------------------------------------------------------------
 // |               Method for saving data to file               |
@@ -48,8 +43,10 @@ void bin2hex(const uint8_t x, uint8_t *buffer) {
     }
 }
 
-
 void saveFrameDataToFile(const LLCP_FrameData_t *data) {
+
+    if(!measured_data_file_)
+        return;
 
     // I am putting the data back into our communication packet
     // ... to be able to decode it fully from the file.
@@ -85,7 +82,6 @@ void saveFrameDataToFile(const LLCP_FrameData_t *data) {
 void measureFrame(int acquisition_time_ms, int pixel_mode) {
 
     measuring_frame_ = true;
-
     mui_measureFrame(&mui_handler_, acquisition_time_ms, pixel_mode);
 }
 
@@ -93,24 +89,26 @@ void measureFrame(int acquisition_time_ms, int pixel_mode) {
 // |                    callbacks for the MUI                   |
 // --------------------------------------------------------------
 
-
 void mui_linux_processAck(const LLCP_Ack_t *data) {
 
     printf("got ack: %d\n", data->success);
     ack_ = true;
 }
 
-
 void mui_linux_processTemperature(const LLCP_Temperature_t *data) {
 
     printf("measured temperature %u C \n", data->temperature);
+}
+
+void mui_linux_processStatus(const LLCP_Status_t *data) {
+
+    ;
 }
 
 void mui_linux_processChipVoltage(const LLCP_ChipVoltage_t *data) {
 
     printf("measured voltage %u mV\n", data->chip_voltage);
 }
-
 
 void mui_linux_processMinipixError([[maybe_unused]] const LLCP_MinipixError_t *data) {
 
@@ -122,9 +120,8 @@ void mui_linux_processMinipixError([[maybe_unused]] const LLCP_MinipixError_t *d
 
         case LLCP_MINIPIX_ERROR_MEASUREMENT_FAILED: {
 
+            measuring_frame_ = false;
             printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_MEASUREMENT_FAILED]);
-
-            // measuring_frame_ = false;
 
             break;
         }
@@ -151,6 +148,7 @@ void mui_linux_processMinipixError([[maybe_unused]] const LLCP_MinipixError_t *d
             printf("Error: '%s'\n", LLCP_MinipixErrors[LLCP_MINIPIX_ERROR_POWERUP_TPX3_RESET_RECVDATA]);
 
             break;
+
         }
 
         case LLCP_MINIPIX_ERROR_POWERUP_TPX3_INIT_RESETS: {
@@ -210,15 +208,8 @@ void mui_linux_processMeasurementFinished() {
 
     printf("measurement finished - ask for data \n");
 
-    LLCP_GetFrameDataReqMsg_t msg;
-    init_LLCP_GetFrameDataReqMsg_t(&msg);
-
-    // convert to network endian
-    // hton_LLCP_GetFrameDataReqMsg_t(&msg);
-
-    uint16_t n_bytes = llcp_prepareMessage((uint8_t *)&msg, sizeof(msg), tx_buffer);
-
-    serial_port_minipix_.sendCharArray(tx_buffer, n_bytes);
+    measuring_frame_ = false;
+    receiving_frame_ = true;
 }
 
 void mui_linux_processFrameData(const LLCP_FrameData_t *data) {
@@ -244,12 +235,9 @@ void mui_linux_processFrameData(const LLCP_FrameData_t *data) {
 
         msg.payload.success = 1;
 
-        // // convert to network endian
-        // hton_LLCP_AckMsg_t(&msg);
-
         uint16_t n_bytes = llcp_prepareMessage((uint8_t *)&msg, sizeof(msg), tx_buffer);
 
-        serial_port_minipix_.sendCharArray(tx_buffer, n_bytes);
+        serial_port_minipix_.send_char_array(tx_buffer, n_bytes);
     }
 }
 
@@ -257,16 +245,15 @@ void mui_linux_processFrameData(const LLCP_FrameData_t *data) {
 void mui_linux_processFrameDataTerminator([[maybe_unused]] const LLCP_FrameDataTerminator_t *data) {
 
     printf("data terminator\n");
-    printf("Received frame with %d pixels\n", number_of_pixels_saved_ + number_of_pixels_not_saved_);
-    printf("Saved only %d of them\n", number_of_pixels_saved_);
+    printf("received frame with %d pixels\n", number_of_pixels_saved_ + number_of_pixels_not_saved_);
+    printf("saved only %d of them\n", number_of_pixels_saved_);
 
-    measuring_frame_ = false;
+    receiving_frame_ = false;
 }
 
 // --------------------------------------------------------------
 // |                     methods for the MUI                    |
 // --------------------------------------------------------------
-
 
 void mui_linux_sleepHW(const uint16_t milliseconds) {
 
@@ -275,11 +262,10 @@ void mui_linux_sleepHW(const uint16_t milliseconds) {
 
 void mui_linux_sendString(const uint8_t *str_out, const uint16_t len) {
 
-    if (!serial_port_minipix_.sendCharArray((unsigned char *)str_out, len)) {
+    if (!serial_port_minipix_.send_char_array((unsigned char *)str_out, len)) {
         printf("failed sending message with %d bytes\n", len);
     }
 }
-
 
 // --------------------------------------------------------------
 // |                     read from minipix                      |
@@ -288,7 +274,7 @@ void mui_linux_sendString(const uint8_t *str_out, const uint16_t len) {
 int read_response(void) {
 
     uint8_t  buffer[RX_SERIAL_BUFFER_SIZE];
-    uint16_t bytes_read = serial_port_minipix_.readSerial(buffer, RX_SERIAL_BUFFER_SIZE);
+    uint16_t bytes_read = serial_port_minipix_.read_serial(buffer, RX_SERIAL_BUFFER_SIZE);
 
     if(!bytes_read)
         return -1;
@@ -304,12 +290,14 @@ int read_response(void) {
 // |                            MAIN                            |
 // --------------------------------------------------------------
 
-
 int main(int argc, char *argv[]) {
 
     int rc = 0;
     std::string data_path;
     bool serial_port_virtual = false;
+
+    int frame_count = 200;
+    int acq_time_ms = 100;
 
     if (argc == 3) {
         data_path    = argv[1];
@@ -327,12 +315,10 @@ int main(int argc, char *argv[]) {
     serial_port_minipix_.connect(serial_port_virtual);
 
     // supply callback fuctions
-    // mui_handler_.fcns.ledSetHW                        = &mui_linux_ledSetHW;
-    // mui_handler_.fcns.sleepHW                         = &mui_linux_sleepHW;
     mui_handler_.fcns.processFrameData                = &mui_linux_processFrameData;
     mui_handler_.fcns.processFrameDataTerminator      = &mui_linux_processFrameDataTerminator;
     mui_handler_.fcns.processFrameMeasurementFinished = &mui_linux_processMeasurementFinished;
-    // mui_handler_.fcns.processStatus                   = &mui_linux_processStatus;
+    mui_handler_.fcns.processStatus                   = &mui_linux_processStatus;
     mui_handler_.fcns.processTemperature              = &mui_linux_processTemperature;
     mui_handler_.fcns.processAck                      = &mui_linux_processAck;
     mui_handler_.fcns.processMinipixError             = &mui_linux_processMinipixError;
@@ -341,92 +327,90 @@ int main(int argc, char *argv[]) {
 
     mui_initialize(&mui_handler_);
 
-    // | --------------- create file for saving data -------------- |
+    // | --------------- lets do some measurement and save data -------------- |
 
     measured_data_file_ = fopen(data_path.c_str(), "w");
 
-    if (measured_data_file_ == nullptr) {
+    if (!measured_data_file_) {
         printf("Error: cannot open the data output file '%s' for writing!\n", data_path.c_str());
     }
-
-
 
     printf("power on the device\n");
     serial_port_minipix_.activate(true);
     mui_pwr(&mui_handler_, 1);  
     rc = read_response();
-    printf("rc = %d\n", rc);
+    if(rc){
+        // todo - if power up fails -> try several times
+        return -1;
+    } 
     serial_port_minipix_.activate(false);
     printf("power on the device finished\n");
-
 
     printf("measure temperature\n");
     serial_port_minipix_.activate(true);
     mui_getTemperature(&mui_handler_);
     rc = read_response();
-    serial_port_minipix_.activate(false);
-    printf("rc = %d\n", rc);
-    printf("finished measure temperature\n");
-
-    printf("measure frame\n");
-    serial_port_minipix_.activate(true);
-    int acq_time_ms = 100;
-    measureFrame(acq_time_ms, 0);
-    usleep(acq_time_ms*1000*2);
-    while(measuring_frame_)
-    {
-        usleep(10000);
-        rc = read_response();    
+    if(rc){
+        // todo - reset communication and try again
+        printf("failed to read temperature\n");
+        return -1;
     }
     serial_port_minipix_.activate(false);
-    printf("rc = %d\n", rc);
-    printf("finished measure frame\n");
+    printf("finished measure temperature\n");
 
 
+    uint8_t confNum = 1;
+    printf("changing configuration to %d\n", confNum);
+    serial_port_minipix_.activate(true);
+    mui_setConfigurationPreset(&mui_handler_, confNum);
+    rc = read_response();
+    if(rc){
+        // todo - reset communication and try again
+        printf("failed to change conf\n");
+        return -1;
+    }
+    serial_port_minipix_.activate(false);
+    // change configuration
 
+    for(int i = 0; i < frame_count; i++){
+        printf("=================\n");
+        printf("measuring frame %d\n", i);
 
+        serial_port_minipix_.activate(true);
+        measureFrame(acq_time_ms, 0);
+        while(measuring_frame_){
+            // todo - some timeout = acq_time + offset for reading data -> reset communication and try again
+            usleep(10000);
+            rc = read_response();    
+        }
+        serial_port_minipix_.activate(false);
 
+        printf(" * requesting frame data\n");
+        serial_port_minipix_.activate(true);
+        mui_getFrameData(&mui_handler_);
+        rc = read_response();
+        if(rc){
+            // todo - reset communication and try again
+            ;
+        }
+        serial_port_minipix_.activate(false);
 
+        while(receiving_frame_)
+        {
+            usleep(10000);
+            serial_port_minipix_.activate(true);
+            mui_sendAck(&mui_handler_, true);
+            rc = read_response();    
+            if(rc){
+                // todo - reset communication and try again
+                ;
+            }            
+            serial_port_minipix_.activate(false);
 
-    return 0;
+        }
 
-
-    // --------------------------------------------------------------
-    // |                   let's measure something                  |
-    // --------------------------------------------------------------
-
-    // // the following parameters should be configurable from Earth
-
-    // // global parameters 
-    // bool     PARAM_SET_CONFIG_USING_TEMP = false;
-    // uint16_t PARAM_CONFIG_TEMP_THRESHOLD = 35;
-
-    // // A1-specific parameters
-    // uint16_t PARAM_A1_DESIRED_OCCUPANCY_PX     = 1500;
-    // uint16_t PARAM_A1_DEFAULT_ACQUISITION_TIME = 1000;  // milliseconds
-    // uint8_t  PARAM_A1_CONFIGURATION_ID         = 0;
-    // uint8_t  PARAM_A1_PXL_MODE                 = LLCP_TPX3_PXL_MODE_MPX_ITOT;  // {0, 1, 2}
-    // uint16_t PARAM_A1_SAVE_MAX_PIXELS          = 3024;
-    // uint16_t PARAM_A1_MIN_ACQUISITION_TIME     = 10;     // milliseconds
-    // uint16_t PARAM_A1_MAX_ACQUISITION_TIME     = 10000;  // milliseconds
-
-    // // A2-specific parameters
-    // uint8_t  PARAM_A2_CONFIGURATION_ID = 0;
-    // uint16_t PARAM_A2_ACQUISITION_TIME = 10000;  // milliseconds
-    // uint8_t  PARAM_A2_PXL_MODE         = LLCP_TPX3_PXL_MODE_MPX_ITOT;  // {0, 1, 2}
-    // uint16_t PARAM_A2_SAVE_MAX_PIXELS  = 3024;
-
-    // for (int i = 0; i < 10; i++) {
-
-    //     measurementA1(PARAM_A1_DESIRED_OCCUPANCY_PX, PARAM_A1_PXL_MODE, PARAM_A1_DEFAULT_ACQUISITION_TIME,
-    //                     PARAM_A1_CONFIGURATION_ID, PARAM_SET_CONFIG_USING_TEMP, PARAM_CONFIG_TEMP_THRESHOLD, PARAM_A1_SAVE_MAX_PIXELS, PARAM_A1_MIN_ACQUISITION_TIME,
-    //                     PARAM_A1_MAX_ACQUISITION_TIME);
-
-    //     for (int j = 0; j < 6; j++) {
-    //         measurementA2(PARAM_A2_PXL_MODE, PARAM_A2_ACQUISITION_TIME, PARAM_A2_CONFIGURATION_ID,
-    //                     PARAM_SET_CONFIG_USING_TEMP, PARAM_CONFIG_TEMP_THRESHOLD, PARAM_A2_SAVE_MAX_PIXELS);
-    //     }
-    // }
+        printf(" * measuring frame %d finished \n", i);
+    }
 
     return 0;
 }

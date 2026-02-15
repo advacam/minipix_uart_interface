@@ -3,8 +3,11 @@
 # #{ imports
 
 # math, arrays, etc.
-import numpy
 import math
+import numpy as np
+import os
+import sys
+import shutil
 
 # gui creator
 import tkinter
@@ -19,7 +22,8 @@ from src.parse_file import *
 # #} end of imports
 
 # the file should containt 1 packet of FrameDataMsg_t() per line in HEXadecimal form
-file_path = "data/dummy_data.txt" 
+file_path = "../example_spi/data.txt" 
+dir_out_path = "_out/"
 
 # #{ open the input file => list of "frame_data"
 
@@ -94,6 +98,15 @@ for idx,frame in enumerate(frame_data):
 # images_data = sorted_data
 
 id_list.sort()
+
+os.makedirs(dir_out_path, exist_ok=True)
+for frame_id, image in images_data.items():
+    frame_file_name = f"frame_{frame_id}.txt"
+    np.savetxt(
+        f"{dir_out_path}{frame_file_name}",
+        image.tot.astype(np.int64),   # or np.int32
+        fmt="%d"
+    )
 
 # #} end of frame_data => list of numpy images
 

@@ -27,19 +27,23 @@
 #define PIN_DIRECTION   0x0B  // SK, DO, CS as outputs; DI as input
 
 #define CS_ASSERT       0   // ON
-#define CS_DEASSERT     1   // OFF - going to using for reset
+#define CS_DEASSERT     1   // OFF 
 
 // Protocol Configuration
-#define CRC_SIZE            2
-#define MAX_READ_ATTEMPTS   100
-#define BASE_SLEEP          100000
-#define POLL_SLEEP          100000
-#define STATUS_POLL_SIZE    5
+#define CRC_SIZE            2       // CRC size
+#define MAX_READ_ATTEMPTS   100     // count of 
+#define BASE_SLEEP          100000  // base sleep time for operations of SPI in us
 
-// Response headers
-#define HEADER_READY        0x0D
-#define HEADER_NOT_READY    0x0A
-// #define HEADER_DATA         0x9A
+#define STATUS_MAX_READ_ATTEMPTS    1000     // count of 
+#define STATUS_POLL_SLEEP           100000  // sleep between pols in us
+#define STATUS_POLL_SIZE            5       // size of status during polling
+#define STATUS_HEADER_READY         0x0D    // device is ready for communication  
+#define STATUS_HEADER_NOT_READY     0x0A    // device is not ready for communication 
+
+// Errors
+#define ERR_SPI_NOT_CONNECTED       -101
+#define ERR_SPI_FAIL_STATUS_POLL    -102
+#define ERR_SPI_FAIL_STATUS_READY   -103
 
 class SpiPort {
 public:
@@ -54,23 +58,18 @@ public:
 
     bool connect(const bool virtual_comm);
     void disconnect();
-
-    bool checkConnected();
-
-    bool sendCharArray(uint8_t* buf, int size);
-    int readSerial(uint8_t* arr, int arr_max_size);
-
-    int activate(bool activ);
+    bool check_connected();
+    bool send_char_array(uint8_t* buf, int size);
+    int read_serial(uint8_t* arr, int arr_max_size);
+    int activate(bool activ);     // Set chip select to active/true of non-active/false state.
 
 private:
-
-    int setCS(int state);
+    int set_cs(int state);
     int write_check(uint8_t *buf, int size);
     int read_with_retry(uint8_t *rx_buffer, size_t read_len, size_t *rx_len);
     int exchange(const uint8_t *tx_buffer, size_t tx_len, uint8_t *rx_buffer, size_t *rx_len);
     void prepare_tx_buffer(uint8_t *tx_buffer, const uint8_t *data, size_t data_len);
     int verify_crc(const uint8_t *data, size_t len);
-
 
     bool virtual_ = false;
     struct ftdi_context *ftdi = nullptr;

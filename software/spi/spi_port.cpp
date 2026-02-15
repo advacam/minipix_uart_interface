@@ -19,7 +19,7 @@ bool SpiPort::connect(const bool virtual_comm)
     
     rc = ftdi_usb_open(ftdi, FTDI_VID, FTDI_PID);
     if (rc < 0) {
-        fprintf(stderr, "Unable to open FTDI device: %d (%s)\n", 
+        fprintf(stderr, "unable to open FTDI device: %d (%s)\n", 
                 rc, ftdi_get_error_string(ftdi));
         ftdi_free(ftdi);
         return false;
@@ -35,7 +35,7 @@ bool SpiPort::connect(const bool virtual_comm)
     // Enable MPSSE mode
     rc = ftdi_set_bitmode(ftdi, 0x00, BITMODE_RESET);
     if (rc < 0) {
-        fprintf(stderr, "Unable to reset bitmode: %d (%s)\n", 
+        fprintf(stderr, "unable to reset bitmode: %d (%s)\n", 
                 rc, ftdi_get_error_string(ftdi));
         return false;
     }
@@ -43,7 +43,7 @@ bool SpiPort::connect(const bool virtual_comm)
     
     rc = ftdi_set_bitmode(ftdi, 0x00, BITMODE_MPSSE);
     if (rc < 0) {
-        fprintf(stderr, "Unable to enable MPSSE mode: %d (%s)\n", 
+        fprintf(stderr, "unable to enable MPSSE mode: %d (%s)\n", 
                 rc, ftdi_get_error_string(ftdi));
         return false;
     }
@@ -66,17 +66,11 @@ bool SpiPort::connect(const bool virtual_comm)
         divf = 0;          // clamp (max speed)
     uint16_t divisor = (uint16_t)(divf + 0.5);  // round to nearest
 
-    printf("divisor %u\n", divisor);
-
-    // mpsse_cmd[idx++] = TCK_DIVISOR;
-    // mpsse_cmd[idx++] = divisor & 0xFF;        // low byte
-    // mpsse_cmd[idx++] = (divisor >> 8) & 0xFF; // high byte
-        
     mpsse_cmd[idx++] = TCK_DIVISOR;
-    mpsse_cmd[idx++] = 0x02; // low byte
-    mpsse_cmd[idx++] = 0x00; // high byte
+    mpsse_cmd[idx++] = divisor & 0xFF;        // low byte
+    mpsse_cmd[idx++] = (divisor >> 8) & 0xFF; // high byte
 
-    // Configure pins: SK, DO, CS as outputs; DI as input
+    // Configure pins to mode 0: SK, DO, CS as outputs; DI as input
     mpsse_cmd[idx++] = SET_BITS_LOW;
     mpsse_cmd[idx++] = CS_HIGH;
     mpsse_cmd[idx++] = PIN_DIRECTION;
@@ -94,7 +88,6 @@ bool SpiPort::connect(const bool virtual_comm)
     usleep(BASE_SLEEP);
     
     return true;
-
 }
 
 void SpiPort::disconnect()
@@ -115,41 +108,52 @@ void SpiPort::disconnect()
 }
 
 
-bool SpiPort::checkConnected()
+bool SpiPort::check_connected()
 {
     return ftdi == nullptr;
 }
 
 int SpiPort::activate(bool activ)
 {
+    if(!ftdi)
+        return ERR_SPI_NOT_CONNECTED;
     int state = activ ? CS_ASSERT : CS_DEASSERT;
-    return setCS(state);
+    return set_cs(state);
 }
 
-bool SpiPort::sendCharArray(uint8_t* buffer, int size)
+bool SpiPort::send_char_array(uint8_t* buffer, int size)
 {
+    if(!ftdi)
+        return false;
+
     size_t tx_size = size + CRC_SIZE;
     uint8_t* tx_buffer = (uint8_t *)malloc(tx_size);
     prepare_tx_buffer(tx_buffer, buffer, size);
-
     uint8_t* dummy_rx = (uint8_t *)calloc(tx_size, 1);  
-
     size_t rx_size_rec = 0;
 
     int rc = exchange(tx_buffer, tx_size, dummy_rx, &rx_size_rec);
 
     if(rc || rx_size_rec != tx_size){
-        printf("falied to send cahr array rc = %d, rx_size_rec = %zu, tx_size = %zu\n", rc, rx_size_rec, tx_size);
+        printf("failed to send char array rc = %d, rx_size_rec = %zu, tx_size = %zu\n", rc, rx_size_rec, tx_size);
         return false;
     }
 
     return true;
 }
 
-int SpiPort::readSerial(uint8_t* rx_buffer, int buf_max_size)
+void SpiPort::prepare_tx_buffer(uint8_t *tx_buffer, const uint8_t *data, size_t data_size) {
+    memcpy(tx_buffer, data, data_size);
+    
+    uint16_t crc = crc16_xmodem(data, data_size);
+    tx_buffer[data_size] = (crc >> 8) & 0xFF;      // High byte
+    tx_buffer[data_size + 1] = crc & 0xFF;         // Low byte
+}
+
+int SpiPort::read_serial(uint8_t* rx_buffer, int buf_max_size)
 {
     if(!ftdi)
-        return 0;;
+        return ERR_SPI_NOT_CONNECTED;
 
     int rc = 0;
     int ready = 0;
@@ -157,137 +161,83 @@ int SpiPort::readSerial(uint8_t* rx_buffer, int buf_max_size)
     size_t rx_expected_size = 0;
     
     // Poll for ready status
-    printf("Polling for device ready...\n");
     size_t poll_len = 0;
-    for (int i = 0; i < MAX_READ_ATTEMPTS; i++) {
-        usleep(POLL_SLEEP);
-        
+    for (int i = 0; i < STATUS_MAX_READ_ATTEMPTS; i++) {
+        usleep(STATUS_POLL_SLEEP);
+
         poll_len = 0;
 
-        // poll_len == 0 for the first message already received during cmd exchange
-        if ((rc = exchange(dummy_tx_poll, STATUS_POLL_SIZE, 
-                                            poll_buffer, &poll_len)) < 0) 
-        {
+        if ((rc = exchange(dummy_tx_poll, STATUS_POLL_SIZE, poll_buffer, &poll_len)) < 0) {
             fprintf(stderr, "Failed to poll device\n");
-            // todo - do something here
+            return ERR_SPI_FAIL_STATUS_POLL;
         }
         
-        print_hex(" --- poll bf: ", poll_buffer, poll_len);
-
-        if (poll_len >= 2 && (((poll_buffer[0] & 0xF0) >> 4 == HEADER_READY) || 
-                            ((poll_buffer[0] & 0x0F) == HEADER_READY) ||
-                            (poll_len > 1 && (poll_buffer[1] & 0xF0) >> 4 == HEADER_READY))) 
+        if (poll_len >= 2 && (  ((poll_buffer[0] & 0xF0) >> 4 == STATUS_HEADER_READY) || 
+                                ((poll_buffer[0] & 0x0F) == STATUS_HEADER_READY) ||
+                                (poll_len > 1 && (poll_buffer[1] & 0xF0) >> 4 == STATUS_HEADER_READY))) 
         {
-            printf("\nDevice ready (header: 0x%03X)\n", (poll_buffer[0] << 4) | ((poll_buffer[1] & 0xF0) >> 4));
+            // printf("\nDevice ready (header: 0x%03X)\n", (poll_buffer[0] << 4) | ((poll_buffer[1] & 0xF0) >> 4));
             ready = 1;
             rx_expected_size = (int)(((poll_buffer[1] & 0x0F) << 8) | poll_buffer[2]);
             break;
-        }
-        else{
-            printf("Device not ready (header: 0x%03X) idx = %d\n", (poll_buffer[0] << 4) | ((poll_buffer[1] & 0xF0) >> 4), i);
-            fflush(stdout);
         }
     }
     
     if (!ready || !rx_expected_size) {
         fprintf(stderr, "Device did not become ready\n");
-        return 0;;
+        return ERR_SPI_FAIL_STATUS_READY;
     }
     
     // check that expected size is not bigger then it should be
     if((size_t)buf_max_size < rx_expected_size){
-        printf("error - expected size %zu is bigger than rx buffer size %u\n", rx_expected_size, buf_max_size);         
-        return 0;
+        fprintf(stderr, "expected size %zu is bigger than rx buffer size %u\n", rx_expected_size, buf_max_size);         
+        return -1;
     }
 
     // Read response message
-    printf("Reading response (%zu bytes expected)...\n", rx_expected_size);
-    usleep(POLL_SLEEP);
+    usleep(STATUS_POLL_SLEEP);
     
     uint8_t *dummy_tx_msg = (uint8_t *)calloc(rx_expected_size, 1);
 
     if (!dummy_tx_msg || !rx_buffer) {
         fprintf(stderr, "Failed to allocate RX buffers\n");
         free(dummy_tx_msg);
-        return 0;;
+        return -2;
     }
     
     rx_size = 0;
     if ((rc = exchange(dummy_tx_msg, rx_expected_size, rx_buffer, &rx_size)) < 0) {
         fprintf(stderr, "Failed to read response\n");
         free(dummy_tx_msg);
-        return 0;;
+        return -3;
     }
     
     free(dummy_tx_msg);
 
-    print_hex("response: ", rx_buffer, rx_size);
-
     // check sizes
     if(rx_size != rx_expected_size){
         printf("incorrect received size: expected = %zu, received = %zu \n", rx_expected_size, rx_size);
-        return 0;
+        return -4;
     }
 
     // validate CRC and remove CRC if success
     if(verify_crc(rx_buffer, rx_size)){
-        return 0;
+        return -5;
     }else{
        rx_size -= CRC_SIZE; 
     }
 
-    // Check for valid data header and given response
-    // if (rx_buffer[0] == HEADER_DATA) {
-    //     printf("Got data header (0x%02X)\n", rx_buffer[0]);
-        
-    //     if (rx_size > 1) {
-    //         memmove(rx_buffer, rx_buffer + 1, rx_size - 1);
-    //         rx_size--; 
-    //     } else {
-    //         rx_size = 0;
-    //     }
-        
-    // } else {
-    //     fprintf(stderr, "Invalid response - header: 0x%02X and size %zu\n", 
-    //             rx_size > 0 ? rx_buffer[0] : 0x00, rx_size);
-    //     return 0;
-    // }
-    
-    print_hex("final response: ", rx_buffer, rx_size);
-    print_bytes("final response: ", rx_buffer, rx_size);
-
-
     return rx_size;
 }
 
-
-void SpiPort::prepare_tx_buffer(uint8_t *tx_buffer, const uint8_t *data, size_t data_size) {
-    // Copy original data
-    memcpy(tx_buffer, data, data_size);
-    
-    // Calculate and append CRC16
-    uint16_t crc = crc16_xmodem(data, data_size);
-    tx_buffer[data_size] = (crc >> 8) & 0xFF;      // High byte
-    tx_buffer[data_size + 1] = crc & 0xFF;         // Low byte
-}
-
 int SpiPort::verify_crc(const uint8_t *data, size_t len) 
-{
-    uint16_t decoded_crc = crc16_xmodem(data, len);
-    printf("Decoded CRC16: 0x%04X\n", decoded_crc);
-    
-    if (decoded_crc == 0) {
-        printf("CRC OK!\n");
-        return 0;
-    } else {
-        printf("CRC MISMATCH!\n");
-        return -1;
-    }
+{    
+    return crc16_xmodem(data, len) == 0 ? 0 : -1;
 }
 
-int SpiPort::setCS(int state) {
+int SpiPort::set_cs(int state) {
     if(!ftdi)
-        return -1;
+        return ERR_SPI_NOT_CONNECTED;
 
     uint8_t cmd[3];
     cmd[0] = SET_BITS_LOW;
@@ -304,7 +254,7 @@ int SpiPort::setCS(int state) {
 int SpiPort::write_check(uint8_t *buf, int size) 
 {
     if (!ftdi)
-        return -1;
+        return ERR_SPI_NOT_CONNECTED;
     
     int ret = ftdi_write_data(ftdi, buf, size);
     
@@ -316,7 +266,7 @@ int SpiPort::write_check(uint8_t *buf, int size)
     // Check if all bytes were written
     if (ret != size) {
         fprintf(stderr, "Partial write: %d of %d bytes written\n", ret, size);
-        return -1;
+        return -2;
     }
     
     return 0;
@@ -325,13 +275,14 @@ int SpiPort::write_check(uint8_t *buf, int size)
 int SpiPort::read_with_retry(uint8_t *rx_buffer, size_t read_len, size_t *rx_len) 
 {
     if(!ftdi)
-        return -1;
+        return ERR_SPI_NOT_CONNECTED;
 
     int total_read = 0;
     int attempts = 0;
     int ret = 0;
     int tryc = 0;
 
+    // retry needed for some delays in readiness of the FTDI
     while (total_read < (int)read_len && attempts < MAX_READ_ATTEMPTS) {
         tryc++;
 
@@ -341,7 +292,6 @@ int SpiPort::read_with_retry(uint8_t *rx_buffer, size_t read_len, size_t *rx_len
             return -1;
         }
         total_read += ret;
-        // printf(" --- tryc = %d recived %d \n", tryc, ret);
 
         if (total_read < (int)read_len) {
             usleep(1000);
@@ -356,7 +306,7 @@ int SpiPort::read_with_retry(uint8_t *rx_buffer, size_t read_len, size_t *rx_len
 int SpiPort::exchange(const uint8_t *tx_buffer, size_t tx_len, uint8_t *rx_buffer, size_t *rx_len) 
 {
     if(!ftdi)
-        return -1;
+        return ERR_SPI_NOT_CONNECTED;
 
     // Allocate command buffer: 3 bytes header + data + 1 byte SEND_IMMEDIATE
     uint8_t *spi_cmd = (uint8_t *)malloc(tx_len + 4);
